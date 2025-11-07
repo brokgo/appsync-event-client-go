@@ -1,0 +1,44 @@
+version: "2"
+linters:
+  default: all
+  disable:
+  - cyclop      # Complexity linter
+  - depguard    # Unessesaary
+  - exhaustruct # Unessesaary
+  - funlen      # Unessesaary
+  - gocognit    # Complexity linter
+  - revive      # Tangential linters. Need to sort through which are good ones.
+  - tagliatelle # Not all external data uses the same naming scheme
+  - wrapcheck   # TODO: https://github.com/brokgo/appsync-event-client-go/issues/4
+  - wsl         # Depricated
+  - wsl_v5      # Formatting linter
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - err113
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    funcorder:
+      alphabetical: true
+    gosec:
+      excludes:
+        - G104  # Same linting as errcheck linter
+    lll:
+      line-length: 200
+    staticcheck:
+      checks:
+      - all
+      - -ST1005
+    varnamelen:
+      ignore-decls:
+        - i int
+        - ok bool
+        - t testing.T
+output:
+  sort-order:
+    - file
+    - linter
+run:
+  timeout: 1m
