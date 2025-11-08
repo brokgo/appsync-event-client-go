@@ -31,10 +31,7 @@ func TestPubSub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config, err := appsync.NewAPIKeyConfig(InfrastructureData.AppsyncEvent.HTTP, InfrastructureData.AppsyncEvent.REALTIME, InfrastructureData.APIKey)
-	if err != nil {
-		t.Fatal(err)
-	}
+	config := appsync.NewAPIKeyConfig(InfrastructureData.AppsyncEvent.HTTP, InfrastructureData.AppsyncEvent.REALTIME, InfrastructureData.APIKey)
 	ctx := context.Background()
 	client, err := appsync.DialWebSocketConfig(ctx, config)
 	if err != nil {
