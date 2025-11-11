@@ -295,10 +295,10 @@ func read(ctx context.Context, conn Conn, msg any) error {
 	return json.Unmarshal(msgJSON, msg)
 }
 
-func write(ctx context.Context, conn Conn, msg any) error {
+func write(ctx context.Context, conn Conn, msg any) (err error) {
 	msgJSON, err := json.Marshal(msg)
 	if err != nil {
-		return err
+		return
 	}
 	writer, err := conn.Writer(ctx, websocket.MessageText)
 	defer func() {
@@ -310,9 +310,9 @@ func write(ctx context.Context, conn Conn, msg any) error {
 	if err != nil {
 		writer.Close() //nolint: errcheck
 
-		return err
+		return
 	}
 	_, err = writer.Write(msgJSON)
 
-	return err
+	return
 }
