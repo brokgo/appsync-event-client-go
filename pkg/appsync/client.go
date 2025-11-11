@@ -87,13 +87,11 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 		return nil, err
 	}
 	var resp *ReceiveMessage
-	var ok bool
 	select {
 	case <-w.done:
-		return nil, w.Err
-	case resp, ok = <-linkC:
+	case resp = <-linkC:
 	}
-	if !ok {
+	if resp == nil {
 		return nil, w.Err
 	}
 	if len(resp.Errors) > 0 {
@@ -128,13 +126,11 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 		return err
 	}
 	var resp *ReceiveMessage
-	var ok bool
 	select {
 	case <-w.done:
-		return w.Err
-	case resp, ok = <-linkC:
+	case resp = <-linkC:
 	}
-	if !ok {
+	if resp == nil {
 		return w.Err
 	}
 	if len(resp.Errors) > 0 {
@@ -168,13 +164,11 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 		return err
 	}
 	var resp *ReceiveMessage
-	var ok bool
 	select {
 	case <-w.done:
-		return w.Err
-	case resp, ok = <-linkC:
+	case resp = <-linkC:
 	}
-	if !ok {
+	if resp == nil {
 		return w.Err
 	}
 	if len(resp.Errors) > 0 {
