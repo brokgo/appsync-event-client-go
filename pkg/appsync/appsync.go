@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"sync"
 	"time"
 
@@ -19,11 +21,19 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 	if err != nil {
 		return nil, err
 	}
+	httpURL, err := url.JoinPath(fmt.Sprintf("%v://", config.HTTPProtocol), config.HTTPEndpoint, "/event")
+	if err != nil {
+		return nil, err
+	}
+	realTimeURL, err := url.JoinPath(fmt.Sprintf("%v://", config.WebSocketProtocol), config.RealTimeEndpoint, "/event/realtime")
+	if err != nil {
+		return nil, err
+	}
 	dialOptions := &websocket.DialOptions{
-		Host:         config.HTTPURL,
+		Host:         httpURL,
 		Subprotocols: []string{"header-" + base64.RawURLEncoding.EncodeToString(jsonHeaders), "aws-appsync-event-ws"},
 	}
-	conn, _, err := websocket.Dial(ctx, config.RealTimeURL, dialOptions)
+	conn, _, err := websocket.Dial(ctx, realTimeURL, dialOptions)
 	if err != nil {
 		return nil, err
 	}

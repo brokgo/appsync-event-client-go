@@ -1,3 +1,5 @@
-.terraform
-*.tfstate
-*.tfstate.backup
+/cover.out
+/e2e/cover.out
+/e2e/infrastructure/.terraform
+/e2e/infrastructure/*.tfstate
+/e2e/infrastructure/*.tfstate.backup

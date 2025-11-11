@@ -5,102 +5,559 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/brokgo/appsync-event-client-go/pkg/appsync"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
 
-func TestPublish(t *testing.T) {
-	t.Parallel()
-	errC, clientMsgC, serverMsgC := buildServer(t, context.Background(), ":8080")
-	client := dial(t, errC, clientMsgC, serverMsgC)
-	channel := "test/publish"
-	events := []string{"eventa", "eventb"}
-	doneC := make(chan struct{})
-	go func() {
-		successfullIs, err := client.Publish(context.Background(), channel, events)
-		if err != nil {
-			errC <- err
-		}
-		if len(successfullIs) != len(events) {
-			errC <- fmt.Errorf("%v events succeeded out of %v", len(successfullIs), len(events))
-		}
-		close(doneC)
-	}()
-	var clientMsg *appsync.SendMessage
-	select {
-	case err := <-errC:
-		t.Fatal(err)
-	case clientMsg = <-clientMsgC:
+type Pool[T any] struct {
+	items []T
+	mu    sync.Mutex
+}
+
+func (p *Pool[T]) Get() T {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.items) == 0 {
+		panic("no items left in the pool")
 	}
-	publishID := clientMsg.ID
+	port := p.items[0]
+	p.items = p.items[1:]
+
+	return port
+}
+
+func (p *Pool[T]) Put(item T) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.items = append(p.items, item)
+}
+
+type Server struct {
+	clientC chan *appsync.SendMessage
+	ErrC    chan error
+	port    string
+	serverC chan *appsync.ReceiveMessage
+}
+
+func (s *Server) DialConfig(config *appsync.Config, connectionTimeout time.Duration) (*appsync.WebSocketClient, error) {
+	clientC := make(chan *appsync.WebSocketClient)
+	go func() {
+		client, err := appsync.DialWebSocketConfig(context.Background(), config)
+		if err != nil {
+			s.ErrC <- err
+		}
+		clientC <- client
+	}()
+	clientMsg, err := s.Receive()
+	if err != nil {
+		return nil, errors.Join(errors.New("failed getting client msg during init"), err)
+	}
 	expectedClientMsg := &appsync.SendMessage{
-		Type:    appsync.PublishType,
-		Channel: channel,
-		ID:      publishID,
-		Events:  events,
+		Type: appsync.ConnectionInitType,
 	}
 	if !clientMsg.Equal(expectedClientMsg) {
-		t.Fatalf("unexpected publish data: %v", clientMsg)
+		return nil, fmt.Errorf("unexpected init data: %v", clientMsg)
 	}
-	serverMsg := &appsync.ReceiveMessage{
-		Type:       appsync.SubscribeSuccessType,
-		ID:         publishID,
-		Successful: []appsync.ReceiveMessageEventID{{Identifier: "abc", Index: 0}, {Identifier: "def", Index: 1}},
-	}
-	select {
-	case err := <-errC:
-		t.Fatal(err)
-	case serverMsgC <- serverMsg:
+	err = s.Send(&appsync.ReceiveMessage{
+		Type:                appsync.ConnectionAckType,
+		ConnectionTimeoutMs: int(connectionTimeout.Milliseconds()),
+	})
+	if err != nil {
+		return nil, errors.Join(errors.New("failed sending client msg during init"), err)
 	}
 	select {
-	case err := <-errC:
-		t.Fatal(err)
-	case <-doneC:
+	case err := <-s.ErrC:
+		return nil, errors.Join(errors.New("failed to create client"), err)
+	case client := <-clientC:
+		return client, nil
 	}
 }
 
-func buildServer(t *testing.T, ctx context.Context, host string) (chan error, chan *appsync.SendMessage, chan *appsync.ReceiveMessage) {
-	t.Helper()
-	errC := make(chan error)
-	clientMsgC := make(chan *appsync.SendMessage)
-	serverMsgC := make(chan *appsync.ReceiveMessage)
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+func (s *Server) Receive() (*appsync.SendMessage, error) {
+	select {
+	case err := <-s.ErrC:
+		return nil, err
+	case msg := <-s.clientC:
+		return msg, nil
+	}
+}
+
+func (s *Server) Send(msg *appsync.ReceiveMessage) error {
+	select {
+	case err := <-s.ErrC:
+		return err
+	case s.serverC <- msg:
+	}
+
+	return nil
+}
+
+var portPool = Pool[string]{}         //nolint: gochecknoglobals
+var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
+
+func TestKeepAlive(t *testing.T) {
+	t.Parallel()
+	serverPort := portPool.Get()
+	server := newServer(serverPort)
+	address := fmt.Sprintf("localhost:%v", serverPort)
+	config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
+	config.HTTPProtocol = "http"
+	config.WebSocketProtocol = "ws"
+	connectionTimeout := 10 * time.Millisecond
+	client, err := server.DialConfig(config, connectionTimeout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 4 {
+		err := server.Send(&appsync.ReceiveMessage{
+			Type: appsync.KeepAliveType,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		go func() {
+		if client.Err != nil {
+			t.Fatal(err)
+		}
+		<-time.After(connectionTimeout / 2)
+	}
+	if client.Err != nil {
+		t.Fatal(err)
+	}
+	err = client.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPublish(t *testing.T) {
+	t.Parallel()
+	responseEvents := []appsync.ReceiveMessageEventID{
+		{Identifier: "abc", Index: 0},
+		{Identifier: "def", Index: 1},
+		{Identifier: "ghi", Index: 2},
+		{Identifier: "jkl", Index: 3},
+	}
+	testCases := map[string]struct {
+		ExpectedErr           error
+		ExpectedSuccessfullIs []int
+		ServerResponse        *appsync.ReceiveMessage
+	}{
+		"success": {
+			ExpectedErr:           nil,
+			ExpectedSuccessfullIs: []int{0, 1, 2, 3},
+			ServerResponse: &appsync.ReceiveMessage{
+				Type:       appsync.PublishSuccessType,
+				Successful: responseEvents,
+			},
+		},
+		"fail": {
+			ExpectedErr:           appsync.ErrServerMsg,
+			ExpectedSuccessfullIs: []int{},
+			ServerResponse: &appsync.ReceiveMessage{
+				Type:   appsync.PublishErrType,
+				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
+			},
+		},
+		"halfsucess": {
+			ExpectedErr:           nil,
+			ExpectedSuccessfullIs: []int{0, 1},
+			ServerResponse: &appsync.ReceiveMessage{
+				Type:       appsync.PublishSuccessType,
+				Successful: responseEvents[:2],
+			},
+		},
+	}
+	for testName, testParams := range testCases {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			serverPort := portPool.Get()
+			server := newServer(serverPort)
+			address := fmt.Sprintf("localhost:%v", serverPort)
+			config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
+			config.HTTPProtocol = "http"
+			config.WebSocketProtocol = "ws"
+			client, err := server.DialConfig(config, defaultTimeout)
+			if err != nil {
+				t.Fatal(err)
+			}
+			channel := "test/publish"
+			events := []string{"eventa", "eventb", "eventc", "eventd"}
+			successfullIC := make(chan []int)
+			errC := make(chan error)
+			go func() {
+				defer close(successfullIC)
+				successfullIs, err := client.Publish(t.Context(), channel, events)
+				if err != nil {
+					errC <- err
+
+					return
+				}
+				close(errC)
+				successfullIC <- successfullIs
+			}()
+			clientMsg, err := server.Receive()
+			if err != nil {
+				t.Fatal()
+			}
+			publishID := clientMsg.ID
+			expectedClientMsg := &appsync.SendMessage{
+				Authorization: config.Authorization,
+				Type:          appsync.PublishType,
+				Channel:       channel,
+				ID:            publishID,
+				Events:        events,
+			}
+			if !clientMsg.Equal(expectedClientMsg) {
+				t.Fatalf("unexpected publish data: %v", clientMsg)
+			}
+			testParams.ServerResponse.ID = publishID
+			err = server.Send(testParams.ServerResponse)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = <-errC
+			if !errors.Is(err, testParams.ExpectedErr) {
+				t.Fatal(err)
+			}
+			successfullIs := <-successfullIC
+			slices.Sort(successfullIs)
+			slices.Sort(testParams.ExpectedSuccessfullIs)
+			if !slices.Equal(successfullIs, testParams.ExpectedSuccessfullIs) {
+				t.Fatalf("expected %v, got %v", testParams.ExpectedSuccessfullIs, successfullIs)
+			}
+			err = client.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestSubscribe(t *testing.T) {
+	t.Parallel()
+	testCases := map[string]struct {
+		ExpectedErr    error
+		ServerData     *appsync.ReceiveMessage
+		ServerResponse *appsync.ReceiveMessage
+	}{
+		"success": {
+			ExpectedErr: nil,
+			ServerData: &appsync.ReceiveMessage{
+				Type:  appsync.SubscriptionDataType,
+				Event: "abc123",
+			},
+			ServerResponse: &appsync.ReceiveMessage{
+				Type: appsync.SubscribeSuccessType,
+			},
+		},
+		"fail": {
+			ExpectedErr: appsync.ErrServerMsg,
+			ServerResponse: &appsync.ReceiveMessage{
+				Type:   appsync.SubscribeErrType,
+				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
+			},
+		},
+		"dataerror": {
+			ExpectedErr: nil,
+			ServerData: &appsync.ReceiveMessage{
+				Type:  appsync.SubscriptionBroadcastErrorType,
+				Event: "abc123",
+			},
+			ServerResponse: &appsync.ReceiveMessage{
+				Type: appsync.SubscribeSuccessType,
+			},
+		},
+	}
+	for testName, testParams := range testCases {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			serverPort := portPool.Get()
+			server := newServer(serverPort)
+			address := fmt.Sprintf("localhost:%v", serverPort)
+			config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
+			config.HTTPProtocol = "http"
+			config.WebSocketProtocol = "ws"
+			client, err := server.DialConfig(config, defaultTimeout)
+			if err != nil {
+				t.Fatal(err)
+			}
+			channel := "test/subscribe"
+			channelC := make(chan *appsync.SubscriptionMessage)
+			errC := make(chan error)
+			go func() {
+				defer close(errC)
+				err := client.Subscribe(t.Context(), channel, channelC)
+				if err != nil {
+					errC <- err
+				}
+			}()
+			clientMsg, err := server.Receive()
+			if err != nil {
+				t.Fatal(err)
+			}
+			publishID := clientMsg.ID
+			expectedClientMsg := &appsync.SendMessage{
+				Authorization: config.Authorization,
+				Type:          appsync.SubscribeType,
+				Channel:       channel,
+				ID:            publishID,
+			}
+			if !clientMsg.Equal(expectedClientMsg) {
+				t.Fatalf("unexpected subscribe data: %v", clientMsg)
+			}
+			testParams.ServerResponse.ID = publishID
+			err = server.Send(testParams.ServerResponse)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = <-errC
+			if !errors.Is(err, testParams.ExpectedErr) {
+				t.Error(err)
+			}
+			if err != nil {
+				client.Close() //nolint: errcheck
+
+				return
+			}
+			testParams.ServerData.ID = publishID
+			err = server.Send(testParams.ServerData)
+			if err != nil {
+				t.Fatal(err)
+			}
+			expectedMsg := &appsync.SubscriptionMessage{
+				Type:  testParams.ServerData.Type,
+				Event: testParams.ServerData.Event,
+			}
+			select {
+			case err = <-server.ErrC:
+				t.Fatal(err)
+			case subscriptionMsg := <-channelC:
+				if !subscriptionMsg.Equal(expectedMsg) {
+					t.Fatalf("unexpected subscription data: %v", clientMsg)
+				}
+			}
+			err = client.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestTimeout(t *testing.T) {
+	t.Parallel()
+	serverPort := portPool.Get()
+	server := newServer(serverPort)
+	address := fmt.Sprintf("localhost:%v", serverPort)
+	config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
+	config.HTTPProtocol = "http"
+	config.WebSocketProtocol = "ws"
+	connectionTimeout := 10 * time.Millisecond
+	client, err := server.DialConfig(config, connectionTimeout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.Err != nil {
+		t.Fatal(err)
+	}
+	<-time.After(connectionTimeout * 2)
+	if !errors.Is(client.Err, appsync.ErrTimeout) {
+		t.Fatalf("Expected timeout error, got %v", err)
+	}
+}
+
+func TestUnsubscribe(t *testing.T) {
+	t.Parallel()
+	testCases := map[string]struct {
+		ExpectedSubErr      error
+		ExpectedUnsubErr    error
+		ServerData          *appsync.ReceiveMessage
+		ServerSubResponse   *appsync.ReceiveMessage
+		ServerUnsubResponse *appsync.ReceiveMessage
+	}{
+		"success": {
+			ExpectedSubErr:   nil,
+			ExpectedUnsubErr: nil,
+			ServerData: &appsync.ReceiveMessage{
+				Type:  appsync.SubscriptionDataType,
+				Event: "abc123",
+			},
+			ServerSubResponse: &appsync.ReceiveMessage{
+				Type: appsync.SubscribeSuccessType,
+			},
+			ServerUnsubResponse: &appsync.ReceiveMessage{
+				Type: appsync.UnsubscribeSuccessType,
+			},
+		},
+		"fail": {
+			ExpectedSubErr:   nil,
+			ExpectedUnsubErr: appsync.ErrServerMsg,
+			ServerData: &appsync.ReceiveMessage{
+				Type:  appsync.SubscriptionDataType,
+				Event: "abc123",
+			},
+			ServerSubResponse: &appsync.ReceiveMessage{
+				Type: appsync.SubscribeSuccessType,
+			},
+			ServerUnsubResponse: &appsync.ReceiveMessage{
+				Type:   appsync.UnsubscribeErrType,
+				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
+			},
+		},
+	}
+	for testName, testParams := range testCases {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			serverPort := portPool.Get()
+			server := newServer(serverPort)
+			address := fmt.Sprintf("localhost:%v", serverPort)
+			config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
+			config.HTTPProtocol = "http"
+			config.WebSocketProtocol = "ws"
+			client, err := server.DialConfig(config, defaultTimeout)
+			if err != nil {
+				t.Fatal(err)
+			}
+			channel := "test/unsubscribe"
+			subErrC := make(chan error)
+			go func() {
+				defer close(subErrC)
+				channelC := make(chan *appsync.SubscriptionMessage)
+				err := client.Subscribe(t.Context(), channel, channelC)
+				if err != nil {
+					subErrC <- err
+
+					return
+				}
+			}()
+			clientMsg, err := server.Receive()
+			if err != nil {
+				t.Fatal(err)
+			}
+			publishID := clientMsg.ID
+			expectedClientMsg := &appsync.SendMessage{
+				Authorization: config.Authorization,
+				Type:          appsync.SubscribeType,
+				Channel:       channel,
+				ID:            publishID,
+			}
+			if !clientMsg.Equal(expectedClientMsg) {
+				t.Fatalf("unexpected subscribe data: %v", clientMsg)
+			}
+			testParams.ServerSubResponse.ID = publishID
+			err = server.Send(testParams.ServerSubResponse)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = <-subErrC
+			if !errors.Is(err, testParams.ExpectedSubErr) {
+				t.Fatal(err)
+			}
+			if err != nil {
+				client.Close() //nolint: errcheck
+
+				return
+			}
+			unsubErrC := make(chan error)
+			go func() {
+				err := client.Unsubscribe(t.Context(), channel)
+				if err != nil {
+					unsubErrC <- err
+
+					return
+				}
+				close(unsubErrC)
+			}()
+			clientMsg, err = server.Receive()
+			if err != nil {
+				t.Fatal(err)
+			}
+			expectedClientMsg = &appsync.SendMessage{
+				Type: appsync.UnsubscribeType,
+				ID:   publishID,
+			}
+			if !clientMsg.Equal(expectedClientMsg) {
+				t.Fatalf("unexpected unsubscribe data: %v", clientMsg)
+			}
+			testParams.ServerUnsubResponse.ID = publishID
+			err = server.Send(testParams.ServerUnsubResponse)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = <-unsubErrC
+			if !errors.Is(err, testParams.ExpectedUnsubErr) {
+				t.Fatal(err)
+			}
+			if err != nil {
+				client.Close() //nolint: errcheck
+
+				return
+			}
+			err = client.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func newServer(port string) *Server {
+	errC := make(chan error)
+	clientC := make(chan *appsync.SendMessage)
+	serverC := make(chan *appsync.ReceiveMessage)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqCtx := r.Context()
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			errC <- err
+		}
+		wsWaitGroup := sync.WaitGroup{}
+		wsWaitGroup.Go(func() {
 			defer conn.CloseNow() //nolint: errcheck
 			for {
 				clientMsg := &appsync.SendMessage{}
-				err = wsjson.Read(ctx, conn, clientMsg)
+				err = wsjson.Read(reqCtx, conn, clientMsg)
 				if err != nil {
 					errC <- err
 
 					return
 				}
-				clientMsgC <- clientMsg
+				select {
+				case <-reqCtx.Done():
+					return
+				case clientC <- clientMsg:
+				}
 			}
-		}()
-		go func() {
+		})
+		wsWaitGroup.Go(func() {
 			defer conn.CloseNow() //nolint: errcheck
 			for {
-				serverMsg := <-serverMsgC
-				err = wsjson.Write(ctx, conn, serverMsg)
+				var serverMsg *appsync.ReceiveMessage
+				select {
+				case <-reqCtx.Done():
+					return
+				case serverMsg = <-serverC:
+				}
+				err = wsjson.Write(reqCtx, conn, serverMsg)
 				if err != nil {
 					errC <- err
 
 					return
 				}
 			}
-		}()
+		})
+		wsWaitGroup.Wait()
 	})
 	go func() {
 		serv := http.Server{ // #nosec G112
-			Addr:    host,
+			Addr:    fmt.Sprintf(":%v", port),
 			Handler: handler,
 		}
 		err := serv.ListenAndServe()
@@ -108,55 +565,20 @@ func buildServer(t *testing.T, ctx context.Context, host string) (chan error, ch
 			errC <- err
 		}
 	}()
-	select {
-	case err := <-errC:
-		t.Fatal(errors.Join(errors.New("failed to create server"), err))
-	default:
-	}
 
-	return errC, clientMsgC, serverMsgC
+	return &Server{
+		clientC: clientC,
+		ErrC:    errC,
+		port:    port,
+		serverC: serverC,
+	}
 }
 
-func dial(t *testing.T, errC chan error, clientMsgC chan *appsync.SendMessage, serverMsgC chan *appsync.ReceiveMessage) *appsync.WebSocketClient {
-	t.Helper()
-	clientC := make(chan *appsync.WebSocketClient)
-	go func() {
-		client, err := appsync.DialWebSocketConfig(context.Background(), &appsync.Config{
-			HTTPURL:     "http://localhost:8080/event",
-			RealTimeURL: "ws://localhost:8080/event/realtime",
-		})
-		if err != nil {
-			errC <- err
-		}
-		clientC <- client
-	}()
-	var clientMsg *appsync.SendMessage
-	select {
-	case err := <-errC:
-		t.Fatal(errors.Join(errors.New("failed getting client msg during init"), err))
-	case clientMsg = <-clientMsgC:
+func TestMain(m *testing.M) {
+	// Issue: https://github.com/brokgo/appsync-event-client-go/issues/7
+	nServers := 20
+	for i := range nServers {
+		portPool.Put(fmt.Sprintf("9%03d", i))
 	}
-	expectedClientMsg := &appsync.SendMessage{
-		Type: appsync.ConnectionInitType,
-	}
-	if !clientMsg.Equal(expectedClientMsg) {
-		t.Fatalf("unexpected init data: %v", clientMsg)
-	}
-	serverMsg := &appsync.ReceiveMessage{
-		Type:                appsync.ConnectionAckType,
-		ConnectionTimeoutMs: 30000, // 30 Seconds
-	}
-	select {
-	case err := <-errC:
-		t.Fatal(errors.Join(errors.New("failed sending client msg during init"), err))
-	case serverMsgC <- serverMsg:
-	}
-	var client *appsync.WebSocketClient
-	select {
-	case err := <-errC:
-		t.Fatal(errors.Join(errors.New("failed to create client"), err))
-	case client = <-clientC:
-	}
-
-	return client
+	os.Exit(m.Run())
 }

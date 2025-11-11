@@ -17,6 +17,18 @@ type SendMessageAuthorization struct {
 	XAPIKey           string `json:"x-api-key,omitempty"`
 }
 
+func (m *SendMessageAuthorization) Equal(otherM *SendMessageAuthorization) bool {
+	if otherM == nil {
+		return false
+	}
+
+	return m.Authorization == otherM.Authorization &&
+		m.Host == otherM.Host &&
+		m.XAmzDate == otherM.XAmzDate &&
+		m.XAmzSecurityToken == otherM.XAmzSecurityToken &&
+		m.XAPIKey == otherM.XAPIKey
+}
+
 type SendMessage struct {
 	Authorization *SendMessageAuthorization `json:"authorization,omitempty"`
 	Channel       string                    `json:"channel,omitempty"`
@@ -26,6 +38,9 @@ type SendMessage struct {
 }
 
 func (m *SendMessage) Equal(otherM *SendMessage) bool {
+	if otherM == nil {
+		return false
+	}
 	if len(m.Events) != len(otherM.Events) {
 		return false
 	}
@@ -34,9 +49,14 @@ func (m *SendMessage) Equal(otherM *SendMessage) bool {
 			return false
 		}
 	}
+	if m.Authorization == nil && otherM.Authorization != nil {
+		return false
+	}
+	if m.Authorization != nil && !m.Authorization.Equal(otherM.Authorization) {
+		return false
+	}
 
-	return m.Authorization == otherM.Authorization &&
-		m.Channel == otherM.Channel &&
+	return m.Channel == otherM.Channel &&
 		m.ID == otherM.ID &&
 		m.Type == otherM.Type
 }
@@ -67,6 +87,23 @@ type SubscriptionMessage struct {
 	Errors []MessageError `json:"errors,omitempty"`
 	Event  string         `json:"event,omitempty"`
 	Type   ReceiveMsgType `json:"type"`
+}
+
+func (m *SubscriptionMessage) Equal(otherM *SubscriptionMessage) bool {
+	if otherM == nil {
+		return false
+	}
+	if len(m.Errors) != len(otherM.Errors) {
+		return false
+	}
+	for i := range m.Errors {
+		if m.Errors[i] != otherM.Errors[i] {
+			return false
+		}
+	}
+
+	return m.Event == otherM.Event &&
+		m.Type == otherM.Type
 }
 
 type ReceiveMessageEventID struct {
