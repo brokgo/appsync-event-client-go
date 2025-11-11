@@ -16,7 +16,7 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - name: Setup golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
   test-unit:
     name: Unit Test
     runs-on: [ubuntu-latest]
