@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/brokgo/appsync-event-client-go/pkg/appsync"
+	"github.com/brokgo/appsync-event-client-go/appsync"
 )
 
 func runPublishAPI(port string) {

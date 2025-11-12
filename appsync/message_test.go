@@ -3,7 +3,7 @@ package appsync_test
 import (
 	"testing"
 
-	"github.com/brokgo/appsync-event-client-go/pkg/appsync"
+	"github.com/brokgo/appsync-event-client-go/appsync"
 )
 
 func TestSendMessageAuthorization(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brokgo/appsync-event-client-go/pkg/appsync"
+	"github.com/brokgo/appsync-event-client-go/appsync"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )

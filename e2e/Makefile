@@ -9,5 +9,5 @@ deploy: build
 
 .PHONY: test
 test:
-	go test -timeout 10s -coverprofile cover.out -coverpkg=github.com/brokgo/appsync-event-client-go/pkg/appsync
+	go test -timeout 10s -coverprofile cover.out -coverpkg=github.com/brokgo/appsync-event-client-go/appsync
 	go tool cover -func cover.out | fgrep total | awk '{print substr($$3, 1, length($$3)-1)}' | awk '{if($$1<50)exit 1}'
