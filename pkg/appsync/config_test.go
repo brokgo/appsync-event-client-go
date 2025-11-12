@@ -24,7 +24,11 @@ func TestConfig(t *testing.T) {
 	for testName, testParams := range testCases {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			server := newServer(testParams.Port)
+			server, err := newServer(testParams.Port)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer server.Shutdown(t.Context())
 			config := testConfigs[testName]
 			config.HTTPProtocol = "http"
 			config.WebSocketProtocol = "ws"
