@@ -26,6 +26,7 @@ var ErrTimeout = errors.New("server timed out")
 var ErrUnknownMessageID = errors.New("unknown message id")
 var ErrUnsupportedMsgFormat = errors.New("unsupported message format")
 
+// WebSocketClient is the client for managing a Appsync event websocket connection. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html.
 type WebSocketClient struct {
 	authorization           *SendMessageAuthorization
 	conn                    Conn
@@ -40,6 +41,7 @@ type WebSocketClient struct {
 	wg                      sync.WaitGroup
 }
 
+// Close closes the connection to the server and all open subscription channels.
 func (w *WebSocketClient) Close() error {
 	select {
 	case <-w.done:
@@ -65,6 +67,7 @@ func (w *WebSocketClient) Close() error {
 	return err
 }
 
+// Publish publishes an event to Appsync.
 func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []string) ([]int, error) {
 	linkUUID, err := uuid.NewRandom()
 	if err != nil {
@@ -105,6 +108,8 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 	return successIndicies, nil
 }
 
+// Subscribe subscribes to an event channel. The chan returned will return events for the channel subscribed to.
+// The chan is closed when the connection to the server is closed.
 func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channelC chan *SubscriptionMessage) error {
 	linkUUID, err := uuid.NewRandom()
 	if err != nil {
@@ -144,6 +149,7 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	return nil
 }
 
+// Unsubscribe unsubscribes to an event channel. The chan used to receive events is not closed after unsubscribing.
 func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error {
 	w.subscriptionMu.RLock()
 	linkID, found := w.subscriptionIDByChannel[channel]

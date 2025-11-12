@@ -72,6 +72,8 @@ func ExampleWebSocketClient_Publish() {
 	if err != nil {
 		panic(err)
 	}
+
+	// JSON events to publish
 	eventABytes, err := json.Marshal(struct {
 		A string `json:"a"`
 	}{
@@ -88,6 +90,7 @@ func ExampleWebSocketClient_Publish() {
 	if err != nil {
 		panic(err)
 	}
+
 	events := []string{string(eventABytes), string(eventBBytes)}
 	channel := "/default/example"
 	successIndicies, err := client.Publish(ctx, channel, events)

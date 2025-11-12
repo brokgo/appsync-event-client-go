@@ -1,4 +1,4 @@
-// Package appsync is a libraty to connect to AWS's Appsync (https://docs.aws.amazon.com/appsync/)
+// Package appsync is a libraty to connect to AWS's Appsync Event API. See https://docs.aws.amazon.com/appsync/.
 package appsync
 
 import (
@@ -15,7 +15,7 @@ import (
 
 const initTimeOut = 30 * time.Second
 
-// DialWebSocketConfig is used for creating a Appsync web socet. For more information, see https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html
+// DialWebSocketConfig creates a Appsync websocket client. For more information on the Appsync websocket API, see https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html.
 func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient, error) {
 	jsonHeaders, err := json.Marshal(config.Headers)
 	if err != nil {
