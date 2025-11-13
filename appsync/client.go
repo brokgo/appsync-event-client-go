@@ -20,16 +20,10 @@ var ErrTimeout = errors.New("server timed out")
 var ErrUnknownMessageID = errors.New("unknown message id")
 var ErrUnsupportedMsgFormat = errors.New("unsupported message format")
 
-type Conn interface {
-	Close(code websocket.StatusCode, reason string) error
-	Reader(ctx context.Context) (websocket.MessageType, io.Reader, error)
-	Writer(ctx context.Context, typ websocket.MessageType) (io.WriteCloser, error)
-}
-
 // WebSocketClient is the client for managing a Appsync event websocket connection. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html.
 type WebSocketClient struct {
 	authorization           *SendMessageAuthorization
-	conn                    Conn
+	conn                    *websocket.Conn
 	done                    chan struct{}
 	Err                     error
 	linkByID                map[string]chan *ReceiveMessage
@@ -323,7 +317,7 @@ func errFromMsgErrors(msgErrs []MessageError) error {
 	return errors.Join(ErrServerMsg, errors.New(string(errBytes))) //nolint: err113
 }
 
-func read(ctx context.Context, conn Conn, msg any) error {
+func read(ctx context.Context, conn *websocket.Conn, msg any) error {
 	msgFormat, reader, err := conn.Reader(ctx)
 	if err != nil {
 		return err
@@ -339,7 +333,7 @@ func read(ctx context.Context, conn Conn, msg any) error {
 	return json.Unmarshal(msgJSON, msg)
 }
 
-func write(ctx context.Context, conn Conn, msg any) (err error) {
+func write(ctx context.Context, conn *websocket.Conn, msg any) (err error) {
 	msgJSON, err := json.Marshal(msg)
 	if err != nil {
 		return
