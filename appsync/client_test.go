@@ -175,7 +175,7 @@ func TestPublish(t *testing.T) {
 				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
-		"halfsucess": {
+		"half_success": {
 			ExpectedErr:           nil,
 			ExpectedSuccessfullIs: []int{0, 1},
 			ServerResponse: &appsync.ReceiveMessage{
@@ -278,7 +278,7 @@ func TestSubscribe(t *testing.T) {
 				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
-		"dataerror": {
+		"data_error": {
 			ExpectedErr: nil,
 			ServerData: &appsync.ReceiveMessage{
 				Type:  appsync.SubscriptionBroadcastErrorType,

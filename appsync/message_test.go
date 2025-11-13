@@ -30,7 +30,7 @@ func TestSendMessageAuthorization(t *testing.T) {
 			},
 			expectedResult: true,
 		},
-		"notequal": {
+		"not_equal": {
 			msgA: &appsync.SendMessageAuthorization{
 				Authorization:     "authtest",
 				Host:              "hosttest",
@@ -97,7 +97,7 @@ func TestSendMessage(t *testing.T) {
 			},
 			expectedResult: true,
 		},
-		"notequal": {
+		"not_equal": {
 			msgA: &appsync.SendMessage{
 				Authorization: &appsync.SendMessageAuthorization{
 					Host: "abc123",
@@ -131,7 +131,7 @@ func TestSendMessage(t *testing.T) {
 			msgB:           nil,
 			expectedResult: false,
 		},
-		"eventlen": {
+		"event_len": {
 			msgA: &appsync.SendMessage{
 				Authorization: &appsync.SendMessageAuthorization{
 					Host: "abc123",
@@ -152,7 +152,7 @@ func TestSendMessage(t *testing.T) {
 			},
 			expectedResult: false,
 		},
-		"aauthnil": {
+		"eventa_auth_nil": {
 			msgA: &appsync.SendMessage{
 				Authorization: nil,
 				Channel:       "chantest",
@@ -171,7 +171,7 @@ func TestSendMessage(t *testing.T) {
 			},
 			expectedResult: false,
 		},
-		"bauthnil": {
+		"eventb_auth_nil": {
 			msgA: &appsync.SendMessage{
 				Authorization: &appsync.SendMessageAuthorization{
 					Host: "abc123",
@@ -227,7 +227,7 @@ func TestSubscriptionMessage(t *testing.T) {
 			},
 			expectedResult: true,
 		},
-		"notequal": {
+		"not_equal": {
 			msgA: &appsync.SubscriptionMessage{
 				Errors: []appsync.MessageError{
 					{ErrorType: "errtest1", Message: "msgtest1"},
@@ -258,7 +258,7 @@ func TestSubscriptionMessage(t *testing.T) {
 			msgB:           nil,
 			expectedResult: false,
 		},
-		"errorlen": {
+		"error_len": {
 			msgA: &appsync.SubscriptionMessage{
 				Errors: []appsync.MessageError{},
 				Event:  "subevent",
@@ -274,7 +274,7 @@ func TestSubscriptionMessage(t *testing.T) {
 			},
 			expectedResult: false,
 		},
-		"errororder": {
+		"error_order": {
 			msgA: &appsync.SubscriptionMessage{
 				Errors: []appsync.MessageError{
 					{ErrorType: "errtest1", Message: "msgtest1"},
