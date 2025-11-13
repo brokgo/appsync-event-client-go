@@ -7,6 +7,7 @@ import (
 )
 
 func handleRequest(ctx context.Context) error {
+	// Issue: https://github.com/brokgo/appsync-event-client-go/issues/12
 	return nil
 }
 
