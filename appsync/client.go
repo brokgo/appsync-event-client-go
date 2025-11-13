@@ -35,7 +35,7 @@ type WebSocketClient struct {
 	linkByID                map[string]chan *ReceiveMessage
 	linkMu                  sync.RWMutex
 	subscriptionIDByChannel map[string]string
-	subscriptionLinkByID    map[string]chan *SubscriptionMessage
+	subscriptionBufferByID  map[string]chan *SubscriptionMessage
 	subscriptionMu          sync.RWMutex
 	timeoutDuration         time.Duration
 	wg                      sync.WaitGroup
@@ -50,19 +50,6 @@ func (w *WebSocketClient) Close() error {
 	}
 	err := w.conn.Close(websocket.StatusNormalClosure, "")
 	w.wg.Wait()
-	w.subscriptionMu.Lock()
-	defer w.subscriptionMu.Unlock()
-	for _, subscriptionC := range w.subscriptionLinkByID {
-		select {
-		case _, ok := <-subscriptionC:
-			if !ok {
-				continue
-			}
-			close(subscriptionC)
-		default:
-			close(subscriptionC)
-		}
-	}
 
 	return err
 }
@@ -110,6 +97,7 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 
 // Subscribe subscribes to an event channel. The chan returned will return events for the channel subscribed to.
 // The chan is closed when the connection to the server is closed.
+// The order of events are not preserved.
 func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channelC chan *SubscriptionMessage) error {
 	linkUUID, err := uuid.NewRandom()
 	if err != nil {
@@ -121,6 +109,19 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	w.linkByID[linkID] = linkC
 	w.linkMu.Unlock()
 	defer deleteLink(linkID, &w.linkMu, w.linkByID)
+	// Catch msg's that are sent after subscribing to the server and
+	// before this function returns
+	inBuffC := make(chan *SubscriptionMessage)
+	w.goHandleSubscriptionBuffer(inBuffC, channelC)
+	w.subscriptionMu.Lock()
+	w.subscriptionBufferByID[linkID] = inBuffC
+	w.subscriptionMu.Unlock()
+	removeSub := func() {
+		w.subscriptionMu.Lock()
+		delete(w.subscriptionBufferByID, linkID)
+		w.subscriptionMu.Unlock()
+		close(inBuffC)
+	}
 	err = write(ctx, w.conn, &SendMessage{
 		Authorization: w.authorization,
 		Type:          SubscribeType,
@@ -128,6 +129,8 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 		Channel:       channel,
 	})
 	if err != nil {
+		removeSub()
+
 		return err
 	}
 	var resp *ReceiveMessage
@@ -136,13 +139,16 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	case resp = <-linkC:
 	}
 	if resp == nil {
+		removeSub()
+
 		return w.Err
 	}
 	if len(resp.Errors) > 0 {
+		removeSub()
+
 		return errFromMsgErrors(resp.Errors)
 	}
 	w.subscriptionMu.Lock()
-	w.subscriptionLinkByID[linkID] = channelC
 	w.subscriptionIDByChannel[channel] = linkID
 	w.subscriptionMu.Unlock()
 
@@ -181,8 +187,10 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 		return errFromMsgErrors(resp.Errors)
 	}
 	w.subscriptionMu.Lock()
+	buffC := w.subscriptionBufferByID[linkID]
 	delete(w.subscriptionIDByChannel, channel)
-	delete(w.subscriptionLinkByID, linkID)
+	delete(w.subscriptionBufferByID, linkID)
+	close(buffC)
 	w.subscriptionMu.Unlock()
 
 	return nil
@@ -205,7 +213,7 @@ func (w *WebSocketClient) goHandleRead(ctx context.Context, cancel context.Cance
 				switch msg.Type {
 				case SubscriptionDataType, SubscriptionBroadcastErrorType:
 					w.subscriptionMu.RLock()
-					subscriptionC, found := w.subscriptionLinkByID[msg.ID]
+					subscriptionC, found := w.subscriptionBufferByID[msg.ID]
 					if !found {
 						w.subscriptionMu.RUnlock()
 						cancel(ErrUnknownMessageID)
@@ -240,6 +248,42 @@ func (w *WebSocketClient) goHandleRead(ctx context.Context, cancel context.Cance
 					}
 					msgC <- msg
 					w.linkMu.RUnlock()
+				}
+			}
+		}
+	})
+}
+
+func (w *WebSocketClient) goHandleSubscriptionBuffer(subIn chan *SubscriptionMessage, subOut chan *SubscriptionMessage) {
+	w.wg.Go(func() {
+		buff := []*SubscriptionMessage{}
+		for {
+			if len(buff) == 0 {
+				select {
+				case <-w.done:
+					close(subOut)
+
+					return
+				case inMsg, ok := <-subIn:
+					if !ok {
+						return
+					}
+					buff = append(buff, inMsg)
+				}
+			} else {
+				outMsg := buff[0]
+				select {
+				case <-w.done:
+					close(subOut)
+
+					return
+				case inMsg, ok := <-subIn:
+					if !ok {
+						return
+					}
+					buff = append(buff, inMsg)
+				case subOut <- outMsg:
+					buff = buff[1:]
 				}
 			}
 		}
