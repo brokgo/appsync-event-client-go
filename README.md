@@ -114,6 +114,6 @@ See [documentation] to see additional examples and the API reference for the lib
 
 [AWS Appsync Event API]: https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-welcome.html
 [documentation]: https://pkg.go.dev/github.com/brokgo/appsync-event-client-go/appsync
-[github-actions-image]: https://github.com/brokgo/appsync-event-client-go/workflows/CI/badge.svg
+[github-actions-image]: https://github.com/brokgo/appsync-event-client-go/actions/workflows/main.yml/badge.svg?branch=main
 [github-actions-url]: https://github.com/brokgo/appsync-event-client-go/actions
 [godoc-image]: https://pkg.go.dev/badge/github.com/brokgo/appsync-event-client-go/appsync
