@@ -25,13 +25,14 @@ realtimeEndpoint := "<ID>.appsync-realtime-api.<region>.amazonaws.com"
 apiKey := "ab-cdefghijklmnopqrstuvwxyz"
 config := appsync.NewAPIKeyConfig(httpEndpoint, realtimeEndpoint, apiKey)
 
+// Client
 ctx := context.Background()
 client, err := appsync.DialWebSocketConfig(ctx, config)
 if err != nil {
     panic(err)
 }
 
-// JSON event to publish
+// JSON event(s) to publish
 eventABytes, err := json.Marshal(struct {
     A string `json:"a"`
 }{
@@ -40,14 +41,19 @@ eventABytes, err := json.Marshal(struct {
 if err != nil {
     panic(err)
 }
-
 events := []string{string(eventABytes)}
+
+// Publish
 channel := "/default/example"
 successIndicies, err := client.Publish(ctx, channel, events)
 if err != nil {
     panic(err)
 }
+
+// Results
 fmt.Println(successIndicies)
+
+// Close
 err = client.Close()
 if err != nil {
     panic(err)
@@ -58,7 +64,6 @@ if err != nil {
 ```go
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/brokgo/appsync-event-client-go/appsync"
@@ -72,22 +77,29 @@ realtimeEndpoint := "<ID>.appsync-realtime-api.<region>.amazonaws.com"
 apiKey := "ab-cdefghijklmnopqrstuvwxyz"
 config := appsync.NewAPIKeyConfig(httpEndpoint, realtimeEndpoint, apiKey)
 
+// Client
 ctx := context.Background()
 client, err := appsync.DialWebSocketConfig(ctx, config)
 if err != nil {
     panic(err)
 }
+
+// Subscribe
 channel := "/default/example"
 msgC := make(chan *appsync.SubscriptionMessage)
 err = client.Subscribe(ctx, channel, msgC)
 if err != nil {
     panic(err)
 }
-msg := <-msgC
-if msg == nil {
+
+// Result
+msg, ok := <-msgC
+if !ok {
     panic(client.Err)
 }
 fmt.Println(msg.Event)
+
+// Close
 err = client.Close()
 if err != nil {
     panic(err)

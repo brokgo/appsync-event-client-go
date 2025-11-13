@@ -67,13 +67,14 @@ func ExampleWebSocketClient_Publish() {
 	config.HTTPProtocol = "http"
 	config.WebSocketProtocol = "ws"
 
+	// Client
 	ctx := context.Background()
 	client, err := appsync.DialWebSocketConfig(ctx, config)
 	if err != nil {
 		panic(err)
 	}
 
-	// JSON events to publish
+	// JSON event(s) to publish
 	eventABytes, err := json.Marshal(struct {
 		A string `json:"a"`
 	}{
@@ -90,18 +91,24 @@ func ExampleWebSocketClient_Publish() {
 	if err != nil {
 		panic(err)
 	}
-
 	events := []string{string(eventABytes), string(eventBBytes)}
+
+	// Publish
 	channel := "/default/example"
 	successIndicies, err := client.Publish(ctx, channel, events)
 	if err != nil {
 		panic(err)
 	}
+
+	// Results
 	fmt.Println(successIndicies)
+
+	// Close
 	err = client.Close()
 	if err != nil {
 		panic(err)
 	}
+
 	// Output: [0 1]
 }
 
@@ -169,26 +176,34 @@ func ExampleWebSocketClient_Subscribe() {
 	config.HTTPProtocol = "http"
 	config.WebSocketProtocol = "ws"
 
+	// Client
 	ctx := context.Background()
 	client, err := appsync.DialWebSocketConfig(ctx, config)
 	if err != nil {
 		panic(err)
 	}
+
+	// Subscribe
 	channel := "/default/example"
 	msgC := make(chan *appsync.SubscriptionMessage)
 	err = client.Subscribe(ctx, channel, msgC)
 	if err != nil {
 		panic(err)
 	}
-	msg := <-msgC
-	if msg == nil {
+
+	// Result
+	msg, ok := <-msgC
+	if !ok {
 		panic(client.Err)
 	}
 	fmt.Println(msg.Event)
+
+	// Close
 	err = client.Close()
 	if err != nil {
 		panic(err)
 	}
+
 	// Output: eventa
 }
 
@@ -262,25 +277,34 @@ func ExampleWebSocketClient_Unsubscribe() {
 	config.HTTPProtocol = "http"
 	config.WebSocketProtocol = "ws"
 
+	// Client
 	ctx := context.Background()
 	client, err := appsync.DialWebSocketConfig(ctx, config)
 	if err != nil {
 		panic(err)
 	}
+
+	// Subscribe
 	channel := "/default/example"
 	msgC := make(chan *appsync.SubscriptionMessage)
 	err = client.Subscribe(ctx, channel, msgC)
 	if err != nil {
 		panic(err)
 	}
+
+	// Unsubscribe
 	err = client.Unsubscribe(ctx, channel)
 	if err != nil {
 		panic(err)
 	}
+
 	fmt.Println("channel is unsubscribed")
+
+	// Close
 	err = client.Close()
 	if err != nil {
 		panic(err)
 	}
+
 	// Output: channel is unsubscribed
 }
