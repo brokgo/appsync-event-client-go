@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"slices"
@@ -11,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brokgo/appsync-event-client-go/pkg/appsync"
+	"github.com/brokgo/appsync-event-client-go/appsync"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -43,6 +44,7 @@ type Server struct {
 	clientC chan *appsync.SendMessage
 	ErrC    chan error
 	port    string
+	server  *http.Server
 	serverC chan *appsync.ReceiveMessage
 }
 
@@ -99,13 +101,21 @@ func (s *Server) Send(msg *appsync.ReceiveMessage) error {
 	return nil
 }
 
+func (s *Server) Shutdown(ctx context.Context) {
+	s.server.Shutdown(ctx) //nolint: errcheck
+}
+
 var portPool = Pool[string]{}         //nolint: gochecknoglobals
 var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
 
 func TestKeepAlive(t *testing.T) {
 	t.Parallel()
 	serverPort := portPool.Get()
-	server := newServer(serverPort)
+	server, err := newServer(serverPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Shutdown(t.Context())
 	address := fmt.Sprintf("localhost:%v", serverPort)
 	config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
 	config.HTTPProtocol = "http"
@@ -178,7 +188,11 @@ func TestPublish(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			serverPort := portPool.Get()
-			server := newServer(serverPort)
+			server, err := newServer(serverPort)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer server.Shutdown(t.Context())
 			address := fmt.Sprintf("localhost:%v", serverPort)
 			config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
 			config.HTTPProtocol = "http"
@@ -279,7 +293,11 @@ func TestSubscribe(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			serverPort := portPool.Get()
-			server := newServer(serverPort)
+			server, err := newServer(serverPort)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer server.Shutdown(t.Context())
 			address := fmt.Sprintf("localhost:%v", serverPort)
 			config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
 			config.HTTPProtocol = "http"
@@ -354,7 +372,11 @@ func TestSubscribe(t *testing.T) {
 func TestTimeout(t *testing.T) {
 	t.Parallel()
 	serverPort := portPool.Get()
-	server := newServer(serverPort)
+	server, err := newServer(serverPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Shutdown(t.Context())
 	address := fmt.Sprintf("localhost:%v", serverPort)
 	config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
 	config.HTTPProtocol = "http"
@@ -416,7 +438,11 @@ func TestUnsubscribe(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			serverPort := portPool.Get()
-			server := newServer(serverPort)
+			server, err := newServer(serverPort)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer server.Shutdown(t.Context())
 			address := fmt.Sprintf("localhost:%v", serverPort)
 			config := appsync.NewAPIKeyConfig(address, address, "apikeytest")
 			config.HTTPProtocol = "http"
@@ -508,7 +534,7 @@ func TestUnsubscribe(t *testing.T) {
 	}
 }
 
-func newServer(port string) *Server {
+func newServer(port string) (*Server, error) {
 	errC := make(chan error)
 	clientC := make(chan *appsync.SendMessage)
 	serverC := make(chan *appsync.ReceiveMessage)
@@ -555,23 +581,48 @@ func newServer(port string) *Server {
 		})
 		wsWaitGroup.Wait()
 	})
+	address := fmt.Sprintf(":%v", port)
+	server := &http.Server{ // #nosec G112
+		Addr:    address,
+		Handler: handler,
+	}
 	go func() {
-		serv := http.Server{ // #nosec G112
-			Addr:    fmt.Sprintf(":%v", port),
-			Handler: handler,
-		}
-		err := serv.ListenAndServe()
+		err := server.ListenAndServe()
 		if err != nil {
 			errC <- err
 		}
 	}()
-
-	return &Server{
+	serverRunning := false
+	dialer := &net.Dialer{
+		Timeout: 2 * time.Second,
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	defer cancel()
+	for !serverRunning {
+		select {
+		case <-ctx.Done():
+			return nil, errors.New("server not starting")
+		default:
+			conn, err := dialer.DialContext(ctx, "tcp", address)
+			if err != nil {
+				continue
+			}
+			serverRunning = true
+			err = conn.Close()
+			if err != nil {
+				return nil, errors.Join(errors.New("failed to close test connection"), err)
+			}
+		}
+	}
+	servre := &Server{
 		clientC: clientC,
 		ErrC:    errC,
 		port:    port,
+		server:  server,
 		serverC: serverC,
 	}
+
+	return servre, nil
 }
 
 func TestMain(m *testing.M) {

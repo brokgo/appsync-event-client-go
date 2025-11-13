@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brokgo/appsync-event-client-go/pkg/appsync"
+	"github.com/brokgo/appsync-event-client-go/appsync"
 )
 
 type InfrastructureData struct {
