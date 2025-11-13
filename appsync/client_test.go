@@ -105,9 +105,6 @@ func (s *Server) Shutdown(ctx context.Context) {
 	s.server.Shutdown(ctx) //nolint: errcheck
 }
 
-var portPool = Pool[string]{}         //nolint: gochecknoglobals
-var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
-
 func TestKeepAlive(t *testing.T) {
 	t.Parallel()
 	serverPort := portPool.Get()
@@ -175,7 +172,7 @@ func TestPublish(t *testing.T) {
 				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
-		"halfsucess": {
+		"half_success": {
 			ExpectedErr:           nil,
 			ExpectedSuccessfullIs: []int{0, 1},
 			ServerResponse: &appsync.ReceiveMessage{
@@ -278,7 +275,7 @@ func TestSubscribe(t *testing.T) {
 				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
-		"dataerror": {
+		"data_error": {
 			ExpectedErr: nil,
 			ServerData: &appsync.ReceiveMessage{
 				Type:  appsync.SubscriptionBroadcastErrorType,
@@ -533,6 +530,9 @@ func TestUnsubscribe(t *testing.T) {
 		})
 	}
 }
+
+var portPool = Pool[string]{}         //nolint: gochecknoglobals
+var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
 
 func newServer(port string) (*Server, error) {
 	errC := make(chan error)
