@@ -8,6 +8,9 @@ Appsync event client is a go websocket client library for connecting with the [A
 ## Quick Start
 
 ### Publish
+
+The following examples shows how to publish an event to the Appsync Event using an api key. Replace `httpEndpoint`, `realtimeEndpoint`, and `apiKey` with your own values.
+
 ```go
 import (
 	"context"
@@ -61,6 +64,9 @@ if err != nil {
 ```
 
 ### Subscription
+
+The following examples shows how to subscribe to an Appsync Event channel using an api key. Replace `httpEndpoint`, `realtimeEndpoint`, and `apiKey` with your own values.
+
 ```go
 import (
 	"context"
@@ -111,6 +117,8 @@ See [documentation] to see additional examples and the API reference for the lib
 
 ## Websocket Appsync Event API
 ![Websocket Appsync Event API Flow](https://docs.aws.amazon.com/images/appsync/latest/eventapi/images/WebSocket-protocol.png)
+Image from https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html.
+
 
 [AWS Appsync Event API]: https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-welcome.html
 [documentation]: https://pkg.go.dev/github.com/brokgo/appsync-event-client-go/appsync
