@@ -152,6 +152,27 @@ func TestSendMessage(t *testing.T) {
 			},
 			expectedResult: false,
 		},
+		"event_order": {
+			msgA: &appsync.SendMessage{
+				Authorization: &appsync.SendMessageAuthorization{
+					Host: "abc123",
+				},
+				Channel: "chantest",
+				Events:  []string{"testa", "testb"},
+				ID:      "testid",
+				Type:    "abc",
+			},
+			msgB: &appsync.SendMessage{
+				Authorization: &appsync.SendMessageAuthorization{
+					Host: "abc123",
+				},
+				Channel: "chantest",
+				Events:  []string{"testb", "testa"},
+				ID:      "testid",
+				Type:    "abc",
+			},
+			expectedResult: false,
+		},
 		"eventa_auth_nil": {
 			msgA: &appsync.SendMessage{
 				Authorization: nil,
