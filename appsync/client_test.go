@@ -105,9 +105,6 @@ func (s *Server) Shutdown(ctx context.Context) {
 	s.server.Shutdown(ctx) //nolint: errcheck
 }
 
-var portPool = Pool[string]{}         //nolint: gochecknoglobals
-var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
-
 func TestKeepAlive(t *testing.T) {
 	t.Parallel()
 	serverPort := portPool.Get()
@@ -533,6 +530,9 @@ func TestUnsubscribe(t *testing.T) {
 		})
 	}
 }
+
+var portPool = Pool[string]{}         //nolint: gochecknoglobals
+var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
 
 func newServer(port string) (*Server, error) {
 	errC := make(chan error)
