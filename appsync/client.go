@@ -195,8 +195,9 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 	return nil
 }
 
-func (w *WebSocketClient) goHandleRead(ctx context.Context, cancel context.CancelCauseFunc, keepAliveC chan struct{}) {
+func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAliveC chan struct{}) {
 	w.wg.Go(func() {
+		ctx := context.Background()
 		for {
 			select {
 			case <-w.done:

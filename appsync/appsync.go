@@ -70,7 +70,7 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 		})
 	}
 	keepAliveC := make(chan struct{}, 1)
-	client.goHandleRead(ctx, cancel, keepAliveC)
+	client.goHandleRead(cancel, keepAliveC) //nolint:contextcheck
 	client.goHandleTimeOut(cancel, time.Duration(initMsg.ConnectionTimeoutMs)*time.Millisecond, keepAliveC)
 
 	return client, nil
