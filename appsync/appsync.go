@@ -53,7 +53,6 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 	if len(initMsg.Errors) > 0 {
 		return nil, errFromMsgErrors(initMsg.Errors)
 	}
-
 	client := &WebSocketClient{
 		authorization:           config.Authorization,
 		conn:                    conn,
@@ -61,7 +60,6 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 		linkByID:                map[string]chan *ReceiveMessage{},
 		subscriptionIDByChannel: map[string]string{},
 		subscriptionBufferByID:  map[string]chan *SubscriptionMessage{},
-		timeoutDuration:         time.Duration(initMsg.ConnectionTimeoutMs) * time.Millisecond,
 		wg:                      sync.WaitGroup{},
 	}
 	var once sync.Once
@@ -72,8 +70,8 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 		})
 	}
 	keepAliveC := make(chan struct{}, 1)
-	client.goHandleRead(ctx, cancel, keepAliveC)
-	client.goHandleTimeOut(cancel, keepAliveC)
+	client.goHandleRead(cancel, keepAliveC) //nolint:contextcheck
+	client.goHandleTimeOut(cancel, time.Duration(initMsg.ConnectionTimeoutMs)*time.Millisecond, keepAliveC)
 
 	return client, nil
 }

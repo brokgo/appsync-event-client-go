@@ -65,7 +65,7 @@ func TestConfig(t *testing.T) {
 				ID:            publishID,
 				Events:        events,
 			}
-			if !clientMsg.Equal(expectedClientMsg) {
+			if !isSendMessageEqual(clientMsg, expectedClientMsg) {
 				t.Fatalf("unexpected publish data: %v", clientMsg)
 			}
 			err = server.Send(&appsync.ReceiveMessage{

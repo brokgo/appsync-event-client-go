@@ -1,6 +1,6 @@
 package appsync
 
-// SendMsgType is the message types that can be sent to the server.
+// SendMsgType is the message types that are sent to the Appsync Event server.
 type SendMsgType string
 
 const (
@@ -10,7 +10,8 @@ const (
 	UnsubscribeType    SendMsgType = "unsubscribe"
 )
 
-// SendMessageAuthorization contain the client authentication details. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html#authorization-formatting-by-mode.
+// SendMessageAuthorization contain the client authentication details. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html#authorization-formatting-by-mode
+// for more information on authorization formatting.
 type SendMessageAuthorization struct {
 	Authorization     string `json:"authorization,omitempty"`
 	Host              string `json:"host,omitempty"`
@@ -19,19 +20,7 @@ type SendMessageAuthorization struct {
 	XAPIKey           string `json:"x-api-key,omitempty"`
 }
 
-func (m *SendMessageAuthorization) Equal(otherM *SendMessageAuthorization) bool {
-	if otherM == nil {
-		return false
-	}
-
-	return m.Authorization == otherM.Authorization &&
-		m.Host == otherM.Host &&
-		m.XAmzDate == otherM.XAmzDate &&
-		m.XAmzSecurityToken == otherM.XAmzSecurityToken &&
-		m.XAPIKey == otherM.XAPIKey
-}
-
-// SendMessage are messages that are sent to the server.
+// SendMessage are messages that are sent to the Appsync Event server.
 type SendMessage struct {
 	Authorization *SendMessageAuthorization `json:"authorization,omitempty"`
 	Channel       string                    `json:"channel,omitempty"`
@@ -40,31 +29,7 @@ type SendMessage struct {
 	Type          SendMsgType               `json:"type"`
 }
 
-func (m *SendMessage) Equal(otherM *SendMessage) bool {
-	if otherM == nil {
-		return false
-	}
-	if len(m.Events) != len(otherM.Events) {
-		return false
-	}
-	for i := range m.Events {
-		if m.Events[i] != otherM.Events[i] {
-			return false
-		}
-	}
-	if m.Authorization == nil && otherM.Authorization != nil {
-		return false
-	}
-	if m.Authorization != nil && !m.Authorization.Equal(otherM.Authorization) {
-		return false
-	}
-
-	return m.Channel == otherM.Channel &&
-		m.ID == otherM.ID &&
-		m.Type == otherM.Type
-}
-
-// ReceiveMsgType is the message types that can be received from the server.
+// ReceiveMsgType is the message types that can be received from the Appsync Event server.
 type ReceiveMsgType string
 
 const (
@@ -82,34 +47,17 @@ const (
 	UnsubscribeSuccessType         ReceiveMsgType = "unsubscribe_success"
 )
 
-// MessageError are errors received from the server.
+// MessageError are errors received from the Appsync Event server.
 type MessageError struct {
 	ErrorType string `json:"errorType"`
 	Message   string `json:"message"`
 }
 
-// SubscriptionMessage are the subscription event messages received from the server.
+// SubscriptionMessage are the subscription event messages received from the Appsync Event server.
 type SubscriptionMessage struct {
 	Errors []MessageError `json:"errors,omitempty"`
 	Event  string         `json:"event,omitempty"`
 	Type   ReceiveMsgType `json:"type"`
-}
-
-func (m *SubscriptionMessage) Equal(otherM *SubscriptionMessage) bool {
-	if otherM == nil {
-		return false
-	}
-	if len(m.Errors) != len(otherM.Errors) {
-		return false
-	}
-	for i := range m.Errors {
-		if m.Errors[i] != otherM.Errors[i] {
-			return false
-		}
-	}
-
-	return m.Event == otherM.Event &&
-		m.Type == otherM.Type
 }
 
 // ReceiveMessageEventID are the event identifiers that are used for reporting success or failed of individual events.
@@ -118,7 +66,7 @@ type ReceiveMessageEventID struct {
 	Index      int    `json:"index"`
 }
 
-// ReceiveMessage are messages that are received from the server.
+// ReceiveMessage are messages that are received from the Appsync Event server.
 type ReceiveMessage struct {
 	ConnectionTimeoutMs int                     `json:"connectionTimeoutMs,omitempty"`
 	Errors              []MessageError          `json:"errors,omitempty"`

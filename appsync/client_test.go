@@ -64,7 +64,7 @@ func (s *Server) DialConfig(config *appsync.Config, connectionTimeout time.Durat
 	expectedClientMsg := &appsync.SendMessage{
 		Type: appsync.ConnectionInitType,
 	}
-	if !clientMsg.Equal(expectedClientMsg) {
+	if !isSendMessageEqual(clientMsg, expectedClientMsg) {
 		return nil, fmt.Errorf("unexpected init data: %v", clientMsg)
 	}
 	err = s.Send(&appsync.ReceiveMessage{
@@ -225,7 +225,7 @@ func TestPublish(t *testing.T) {
 				ID:            publishID,
 				Events:        events,
 			}
-			if !clientMsg.Equal(expectedClientMsg) {
+			if !isSendMessageEqual(clientMsg, expectedClientMsg) {
 				t.Fatalf("unexpected publish data: %v", clientMsg)
 			}
 			testParams.ServerResponse.ID = publishID
@@ -324,7 +324,7 @@ func TestSubscribe(t *testing.T) {
 				Channel:       channel,
 				ID:            publishID,
 			}
-			if !clientMsg.Equal(expectedClientMsg) {
+			if !isSendMessageEqual(clientMsg, expectedClientMsg) {
 				t.Fatalf("unexpected subscribe data: %v", clientMsg)
 			}
 			testParams.ServerResponse.ID = publishID
@@ -354,7 +354,7 @@ func TestSubscribe(t *testing.T) {
 			case err = <-server.ErrC:
 				t.Fatal(err)
 			case subscriptionMsg := <-channelC:
-				if !subscriptionMsg.Equal(expectedMsg) {
+				if !isSubscriptionMessageEqual(subscriptionMsg, expectedMsg) {
 					t.Fatalf("unexpected subscription data: %v", clientMsg)
 				}
 			}
@@ -471,7 +471,7 @@ func TestUnsubscribe(t *testing.T) {
 				Channel:       channel,
 				ID:            publishID,
 			}
-			if !clientMsg.Equal(expectedClientMsg) {
+			if !isSendMessageEqual(clientMsg, expectedClientMsg) {
 				t.Fatalf("unexpected subscribe data: %v", clientMsg)
 			}
 			testParams.ServerSubResponse.ID = publishID
@@ -506,7 +506,7 @@ func TestUnsubscribe(t *testing.T) {
 				Type: appsync.UnsubscribeType,
 				ID:   publishID,
 			}
-			if !clientMsg.Equal(expectedClientMsg) {
+			if !isSendMessageEqual(clientMsg, expectedClientMsg) {
 				t.Fatalf("unexpected unsubscribe data: %v", clientMsg)
 			}
 			testParams.ServerUnsubResponse.ID = publishID
@@ -533,6 +533,77 @@ func TestUnsubscribe(t *testing.T) {
 
 var portPool = Pool[string]{}         //nolint: gochecknoglobals
 var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
+
+func isSendMessageAuthorizationEqual(msg1, msg2 *appsync.SendMessageAuthorization) bool {
+	if msg1 == nil && msg2 == nil {
+		return true
+	}
+	if msg1 == nil {
+		return false
+	}
+	if msg2 == nil {
+		return false
+	}
+
+	return msg1.Authorization == msg2.Authorization &&
+		msg1.Host == msg2.Host &&
+		msg1.XAmzDate == msg2.XAmzDate &&
+		msg1.XAmzSecurityToken == msg2.XAmzSecurityToken &&
+		msg1.XAPIKey == msg2.XAPIKey
+}
+
+func isSendMessageEqual(msg1, msg2 *appsync.SendMessage) bool {
+	if msg1 == nil && msg2 == nil {
+		return true
+	}
+	if msg1 == nil {
+		return false
+	}
+	if msg2 == nil {
+		return false
+	}
+	if len(msg1.Events) != len(msg2.Events) {
+		return false
+	}
+	for i := range msg1.Events {
+		if msg1.Events[i] != msg2.Events[i] {
+			return false
+		}
+	}
+	if msg1.Authorization == nil && msg2.Authorization != nil {
+		return false
+	}
+	if msg1.Authorization != nil && !isSendMessageAuthorizationEqual(msg1.Authorization, msg2.Authorization) {
+		return false
+	}
+
+	return msg1.Channel == msg2.Channel &&
+		msg1.ID == msg2.ID &&
+		msg1.Type == msg2.Type
+}
+
+func isSubscriptionMessageEqual(msg1, msg2 *appsync.SubscriptionMessage) bool {
+	if msg1 == nil && msg2 == nil {
+		return true
+	}
+	if msg1 == nil {
+		return false
+	}
+	if msg2 == nil {
+		return false
+	}
+	if len(msg1.Errors) != len(msg2.Errors) {
+		return false
+	}
+	for i := range msg1.Errors {
+		if msg1.Errors[i] != msg2.Errors[i] {
+			return false
+		}
+	}
+
+	return msg1.Event == msg2.Event &&
+		msg1.Type == msg2.Type
+}
 
 func newServer(port string) (*Server, error) {
 	errC := make(chan error)

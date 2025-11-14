@@ -12,32 +12,32 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrChannelNotSubscribed = errors.New("channel is not subscribed")
-var ErrMarshalMsg = errors.New("failed to marshal message")
-var ErrRecieveMsg = errors.New("failed to receive message")
-var ErrServerMsg = errors.New("server returned error")
-var ErrTimeout = errors.New("server timed out")
-var ErrUnknownMessageID = errors.New("unknown message id")
-var ErrUnsupportedMsgFormat = errors.New("unsupported message format")
+// Possible errors returned from creation or usage of the WebSocketClient.
+var (
+	ErrChannelNotSubscribed = errors.New("channel is not subscribed")
+	ErrContextEnded         = errors.New("context ended")
+	ErrMarshalMsg           = errors.New("failed to marshal message")
+	ErrRecieveMsg           = errors.New("failed to receive message")
+	ErrServerMsg            = errors.New("server returned error")
+	ErrTimeout              = errors.New("server timed out")
+	ErrUnknownMessageID     = errors.New("unknown message id")
+	ErrUnsupportedMsgFormat = errors.New("unsupported message format")
+)
 
-type Conn interface {
-	Close(code websocket.StatusCode, reason string) error
-	Reader(ctx context.Context) (websocket.MessageType, io.Reader, error)
-	Writer(ctx context.Context, typ websocket.MessageType) (io.WriteCloser, error)
-}
-
-// WebSocketClient is the client for managing a Appsync event websocket connection. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html.
+// WebSocketClient is the client for managing a Appsync Event websocket connection.
 type WebSocketClient struct {
+	// Err is the first error found that prvent the client from conting.
+	// These errors range from connection errors to data processing errors.
+	Err error
+
 	authorization           *SendMessageAuthorization
-	conn                    Conn
+	conn                    *websocket.Conn
 	done                    chan struct{}
-	Err                     error
 	linkByID                map[string]chan *ReceiveMessage
 	linkMu                  sync.RWMutex
 	subscriptionIDByChannel map[string]string
 	subscriptionBufferByID  map[string]chan *SubscriptionMessage
 	subscriptionMu          sync.RWMutex
-	timeoutDuration         time.Duration
 	wg                      sync.WaitGroup
 }
 
@@ -55,6 +55,7 @@ func (w *WebSocketClient) Close() error {
 }
 
 // Publish publishes an event to Appsync.
+// If you want to send JSON event, marshal the object into a string.
 func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []string) ([]int, error) {
 	linkUUID, err := uuid.NewRandom()
 	if err != nil {
@@ -78,6 +79,8 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 	}
 	var resp *ReceiveMessage
 	select {
+	case <-ctx.Done():
+		return nil, errors.Join(ErrContextEnded, ctx.Err())
 	case <-w.done:
 	case resp = <-linkC:
 	}
@@ -95,9 +98,8 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 	return successIndicies, nil
 }
 
-// Subscribe subscribes to an event channel. The chan returned will return events for the channel subscribed to.
-// The chan is closed when the connection to the server is closed.
-// The order of events are not preserved.
+// Subscribe subscribes to an event channel. The chan returned, channelC, will return events for the channel subscription.
+// channelC can be buffered or unbuffered. It is closed when the connection to the server is closed.
 func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channelC chan *SubscriptionMessage) error {
 	linkUUID, err := uuid.NewRandom()
 	if err != nil {
@@ -135,6 +137,8 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	}
 	var resp *ReceiveMessage
 	select {
+	case <-ctx.Done():
+		return errors.Join(ErrContextEnded, ctx.Err())
 	case <-w.done:
 	case resp = <-linkC:
 	}
@@ -177,6 +181,8 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 	}
 	var resp *ReceiveMessage
 	select {
+	case <-ctx.Done():
+		return errors.Join(ErrContextEnded, ctx.Err())
 	case <-w.done:
 	case resp = <-linkC:
 	}
@@ -196,8 +202,9 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 	return nil
 }
 
-func (w *WebSocketClient) goHandleRead(ctx context.Context, cancel context.CancelCauseFunc, keepAliveC chan struct{}) {
+func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAliveC chan struct{}) {
 	w.wg.Go(func() {
+		ctx := context.Background()
 		for {
 			select {
 			case <-w.done:
@@ -290,15 +297,15 @@ func (w *WebSocketClient) goHandleSubscriptionBuffer(subIn chan *SubscriptionMes
 	})
 }
 
-func (w *WebSocketClient) goHandleTimeOut(cancel context.CancelCauseFunc, keepAliveC chan struct{}) {
+func (w *WebSocketClient) goHandleTimeOut(cancel context.CancelCauseFunc, timeoutDuration time.Duration, keepAliveC chan struct{}) {
 	w.wg.Go(func() {
-		timer := time.NewTimer(w.timeoutDuration)
+		timer := time.NewTimer(timeoutDuration)
 		for {
 			select {
 			case <-w.done:
 				return
 			case <-keepAliveC:
-				timer.Reset(w.timeoutDuration)
+				timer.Reset(timeoutDuration)
 			case <-timer.C:
 				cancel(ErrTimeout)
 
@@ -323,7 +330,7 @@ func errFromMsgErrors(msgErrs []MessageError) error {
 	return errors.Join(ErrServerMsg, errors.New(string(errBytes))) //nolint: err113
 }
 
-func read(ctx context.Context, conn Conn, msg any) error {
+func read(ctx context.Context, conn *websocket.Conn, msg any) error {
 	msgFormat, reader, err := conn.Reader(ctx)
 	if err != nil {
 		return err
@@ -339,7 +346,7 @@ func read(ctx context.Context, conn Conn, msg any) error {
 	return json.Unmarshal(msgJSON, msg)
 }
 
-func write(ctx context.Context, conn Conn, msg any) (err error) {
+func write(ctx context.Context, conn *websocket.Conn, msg any) (err error) {
 	msgJSON, err := json.Marshal(msg)
 	if err != nil {
 		return
