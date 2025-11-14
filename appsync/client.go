@@ -37,7 +37,6 @@ type WebSocketClient struct {
 	subscriptionIDByChannel map[string]string
 	subscriptionBufferByID  map[string]chan *SubscriptionMessage
 	subscriptionMu          sync.RWMutex
-	timeoutDuration         time.Duration
 	wg                      sync.WaitGroup
 }
 
@@ -290,15 +289,15 @@ func (w *WebSocketClient) goHandleSubscriptionBuffer(subIn chan *SubscriptionMes
 	})
 }
 
-func (w *WebSocketClient) goHandleTimeOut(cancel context.CancelCauseFunc, keepAliveC chan struct{}) {
+func (w *WebSocketClient) goHandleTimeOut(cancel context.CancelCauseFunc, timeoutDuration time.Duration, keepAliveC chan struct{}) {
 	w.wg.Go(func() {
-		timer := time.NewTimer(w.timeoutDuration)
+		timer := time.NewTimer(timeoutDuration)
 		for {
 			select {
 			case <-w.done:
 				return
 			case <-keepAliveC:
-				timer.Reset(w.timeoutDuration)
+				timer.Reset(timeoutDuration)
 			case <-timer.C:
 				cancel(ErrTimeout)
 
