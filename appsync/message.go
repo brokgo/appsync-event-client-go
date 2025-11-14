@@ -19,18 +19,6 @@ type SendMessageAuthorization struct {
 	XAPIKey           string `json:"x-api-key,omitempty"`
 }
 
-func (m *SendMessageAuthorization) Equal(otherM *SendMessageAuthorization) bool {
-	if otherM == nil {
-		return false
-	}
-
-	return m.Authorization == otherM.Authorization &&
-		m.Host == otherM.Host &&
-		m.XAmzDate == otherM.XAmzDate &&
-		m.XAmzSecurityToken == otherM.XAmzSecurityToken &&
-		m.XAPIKey == otherM.XAPIKey
-}
-
 // SendMessage are messages that are sent to the server.
 type SendMessage struct {
 	Authorization *SendMessageAuthorization `json:"authorization,omitempty"`
@@ -38,30 +26,6 @@ type SendMessage struct {
 	Events        []string                  `json:"events,omitempty"`
 	ID            string                    `json:"id,omitempty"`
 	Type          SendMsgType               `json:"type"`
-}
-
-func (m *SendMessage) Equal(otherM *SendMessage) bool {
-	if otherM == nil {
-		return false
-	}
-	if len(m.Events) != len(otherM.Events) {
-		return false
-	}
-	for i := range m.Events {
-		if m.Events[i] != otherM.Events[i] {
-			return false
-		}
-	}
-	if m.Authorization == nil && otherM.Authorization != nil {
-		return false
-	}
-	if m.Authorization != nil && !m.Authorization.Equal(otherM.Authorization) {
-		return false
-	}
-
-	return m.Channel == otherM.Channel &&
-		m.ID == otherM.ID &&
-		m.Type == otherM.Type
 }
 
 // ReceiveMsgType is the message types that can be received from the server.
@@ -93,23 +57,6 @@ type SubscriptionMessage struct {
 	Errors []MessageError `json:"errors,omitempty"`
 	Event  string         `json:"event,omitempty"`
 	Type   ReceiveMsgType `json:"type"`
-}
-
-func (m *SubscriptionMessage) Equal(otherM *SubscriptionMessage) bool {
-	if otherM == nil {
-		return false
-	}
-	if len(m.Errors) != len(otherM.Errors) {
-		return false
-	}
-	for i := range m.Errors {
-		if m.Errors[i] != otherM.Errors[i] {
-			return false
-		}
-	}
-
-	return m.Event == otherM.Event &&
-		m.Type == otherM.Type
 }
 
 // ReceiveMessageEventID are the event identifiers that are used for reporting success or failed of individual events.
