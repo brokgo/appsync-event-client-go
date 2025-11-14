@@ -15,6 +15,7 @@ import (
 // Possible errors returned from creation or usage of the WebSocketClient.
 var (
 	ErrChannelNotSubscribed = errors.New("channel is not subscribed")
+	ErrContextEnded         = errors.New("context ended")
 	ErrMarshalMsg           = errors.New("failed to marshal message")
 	ErrRecieveMsg           = errors.New("failed to receive message")
 	ErrServerMsg            = errors.New("server returned error")
@@ -78,6 +79,8 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 	}
 	var resp *ReceiveMessage
 	select {
+	case <-ctx.Done():
+		return nil, errors.Join(ErrContextEnded, ctx.Err())
 	case <-w.done:
 	case resp = <-linkC:
 	}
@@ -134,6 +137,8 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	}
 	var resp *ReceiveMessage
 	select {
+	case <-ctx.Done():
+		return errors.Join(ErrContextEnded, ctx.Err())
 	case <-w.done:
 	case resp = <-linkC:
 	}
@@ -176,6 +181,8 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 	}
 	var resp *ReceiveMessage
 	select {
+	case <-ctx.Done():
+		return errors.Join(ErrContextEnded, ctx.Err())
 	case <-w.done:
 	case resp = <-linkC:
 	}
