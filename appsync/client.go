@@ -12,13 +12,16 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrChannelNotSubscribed = errors.New("channel is not subscribed")
-var ErrMarshalMsg = errors.New("failed to marshal message")
-var ErrRecieveMsg = errors.New("failed to receive message")
-var ErrServerMsg = errors.New("server returned error")
-var ErrTimeout = errors.New("server timed out")
-var ErrUnknownMessageID = errors.New("unknown message id")
-var ErrUnsupportedMsgFormat = errors.New("unsupported message format")
+// Possible errors returned from creation or usage of the WebSocketClient.
+var (
+	ErrChannelNotSubscribed = errors.New("channel is not subscribed")
+	ErrMarshalMsg           = errors.New("failed to marshal message")
+	ErrRecieveMsg           = errors.New("failed to receive message")
+	ErrServerMsg            = errors.New("server returned error")
+	ErrTimeout              = errors.New("server timed out")
+	ErrUnknownMessageID     = errors.New("unknown message id")
+	ErrUnsupportedMsgFormat = errors.New("unsupported message format")
+)
 
 // WebSocketClient is the client for managing a Appsync event websocket connection. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html.
 type WebSocketClient struct {

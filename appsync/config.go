@@ -1,5 +1,6 @@
 package appsync
 
+// Config is the configuration file for creating the client.
 type Config struct {
 	Authorization     *SendMessageAuthorization
 	Headers           map[string]string
