@@ -1,6 +1,6 @@
 package appsync
 
-// SendMsgType is the message types that can be sent to the server.
+// SendMsgType is the message types that are sent to the Appsync Event server.
 type SendMsgType string
 
 const (
@@ -10,7 +10,8 @@ const (
 	UnsubscribeType    SendMsgType = "unsubscribe"
 )
 
-// SendMessageAuthorization contain the client authentication details. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html#authorization-formatting-by-mode.
+// SendMessageAuthorization contain the client authentication details. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html#authorization-formatting-by-mode
+// for more information on authorization formatting.
 type SendMessageAuthorization struct {
 	Authorization     string `json:"authorization,omitempty"`
 	Host              string `json:"host,omitempty"`
@@ -19,7 +20,7 @@ type SendMessageAuthorization struct {
 	XAPIKey           string `json:"x-api-key,omitempty"`
 }
 
-// SendMessage are messages that are sent to the server.
+// SendMessage are messages that are sent to the Appsync Event server.
 type SendMessage struct {
 	Authorization *SendMessageAuthorization `json:"authorization,omitempty"`
 	Channel       string                    `json:"channel,omitempty"`
@@ -28,7 +29,7 @@ type SendMessage struct {
 	Type          SendMsgType               `json:"type"`
 }
 
-// ReceiveMsgType is the message types that can be received from the server.
+// ReceiveMsgType is the message types that can be received from the Appsync Event server.
 type ReceiveMsgType string
 
 const (
@@ -46,13 +47,13 @@ const (
 	UnsubscribeSuccessType         ReceiveMsgType = "unsubscribe_success"
 )
 
-// MessageError are errors received from the server.
+// MessageError are errors received from the Appsync Event server.
 type MessageError struct {
 	ErrorType string `json:"errorType"`
 	Message   string `json:"message"`
 }
 
-// SubscriptionMessage are the subscription event messages received from the server.
+// SubscriptionMessage are the subscription event messages received from the Appsync Event server.
 type SubscriptionMessage struct {
 	Errors []MessageError `json:"errors,omitempty"`
 	Event  string         `json:"event,omitempty"`
@@ -65,7 +66,7 @@ type ReceiveMessageEventID struct {
 	Index      int    `json:"index"`
 }
 
-// ReceiveMessage are messages that are received from the server.
+// ReceiveMessage are messages that are received from the Appsync Event server.
 type ReceiveMessage struct {
 	ConnectionTimeoutMs int                     `json:"connectionTimeoutMs,omitempty"`
 	Errors              []MessageError          `json:"errors,omitempty"`
