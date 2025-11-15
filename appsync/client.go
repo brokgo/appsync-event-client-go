@@ -30,7 +30,7 @@ var (
 
 // WebSocketClient is the client for managing a Appsync Event websocket connection.
 type WebSocketClient struct {
-	// Err is the first error found that prvent the client from conting.
+	// Err is the first error found that prvent the client from continuing.
 	// These errors range from connection errors to data processing errors.
 	Err error
 
