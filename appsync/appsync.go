@@ -57,9 +57,9 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 		authorization:           config.Authorization,
 		conn:                    conn,
 		done:                    make(chan struct{}),
-		linkByID:                map[string]chan *ReceiveMessage{},
-		subscriptionIDByChannel: map[string]string{},
-		subscriptionBufferByID:  map[string]chan *SubscriptionMessage{},
+		linkByID:                sync.Map{},
+		subscriptionByID:        sync.Map{},
+		subscriptionIDByChannel: sync.Map{},
 		wg:                      sync.WaitGroup{},
 	}
 	var once sync.Once

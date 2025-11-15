@@ -16,11 +16,15 @@ import (
 var (
 	ErrChannelNotSubscribed = errors.New("channel is not subscribed")
 	ErrContextEnded         = errors.New("context ended")
+	ErrIDDoesNotExists      = errors.New("id does not exist")
+	ErrIDExists             = errors.New("uuid exsists")
 	ErrMarshalMsg           = errors.New("failed to marshal message")
 	ErrRecieveMsg           = errors.New("failed to receive message")
 	ErrServerMsg            = errors.New("server returned error")
+	ErrSubscriptionCalled   = errors.New("subscription on channel already called")
 	ErrTimeout              = errors.New("server timed out")
-	ErrUnknownMessageID     = errors.New("unknown message id")
+	ErrTypeAssertion        = errors.New("faild type assertion")
+	ErrUnsubscriptionCalled = errors.New("unsubscription on channel already called")
 	ErrUnsupportedMsgFormat = errors.New("unsupported message format")
 )
 
@@ -33,11 +37,9 @@ type WebSocketClient struct {
 	authorization           *SendMessageAuthorization
 	conn                    *websocket.Conn
 	done                    chan struct{}
-	linkByID                map[string]chan *ReceiveMessage
-	linkMu                  sync.RWMutex
-	subscriptionIDByChannel map[string]string
-	subscriptionBufferByID  map[string]chan *SubscriptionMessage
-	subscriptionMu          sync.RWMutex
+	linkByID                sync.Map
+	subscriptionByID        sync.Map
+	subscriptionIDByChannel sync.Map
 	wg                      sync.WaitGroup
 }
 
@@ -62,11 +64,12 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 		return nil, err
 	}
 	linkID := linkUUID.String()
-	linkC := make(chan *ReceiveMessage, 1)
-	w.linkMu.Lock()
-	w.linkByID[linkID] = linkC
-	w.linkMu.Unlock()
-	defer deleteLink(linkID, &w.linkMu, w.linkByID)
+	link, err := w.registerLink(linkID)
+	if err != nil {
+		return nil, err
+	}
+	defer w.linkByID.Delete(linkID)
+	defer close(link.Done)
 	err = write(ctx, w.conn, &SendMessage{
 		Authorization: w.authorization,
 		Channel:       channel,
@@ -82,7 +85,7 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 	case <-ctx.Done():
 		return nil, errors.Join(ErrContextEnded, ctx.Err())
 	case <-w.done:
-	case resp = <-linkC:
+	case resp = <-link.Chan:
 	}
 	if resp == nil {
 		return nil, w.Err
@@ -106,30 +109,38 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 		return err
 	}
 	linkID := linkUUID.String()
-	linkC := make(chan *ReceiveMessage, 1)
-	w.linkMu.Lock()
-	w.linkByID[linkID] = linkC
-	w.linkMu.Unlock()
-	defer deleteLink(linkID, &w.linkMu, w.linkByID)
-	// Catch msg's that are sent after subscribing to the server and
-	// before this function returns
-	inBuffC := make(chan *SubscriptionMessage)
-	w.goHandleSubscriptionBuffer(inBuffC, channelC)
-	w.subscriptionMu.Lock()
-	w.subscriptionBufferByID[linkID] = inBuffC
-	w.subscriptionMu.Unlock()
-	removeSub := func() {
-		w.subscriptionMu.Lock()
-		delete(w.subscriptionBufferByID, linkID)
-		w.subscriptionMu.Unlock()
-		close(inBuffC)
+	sub := &subscription{
+		Chan: make(chan *SubscriptionMessage),
+		Mu:   sync.Mutex{},
 	}
+	w.goHandleSubscriptionBuffer(sub.Chan, channelC)
+	sub.Mu.Lock()
+	defer sub.Mu.Unlock()
+	_, loaded := w.subscriptionByID.LoadOrStore(linkID, sub)
+	if loaded {
+		return ErrIDExists
+	}
+	_, loaded = w.subscriptionIDByChannel.LoadOrStore(channel, linkID)
+	if loaded {
+		return ErrSubscriptionCalled
+	}
+	link, err := w.registerLink(linkID)
+	if err != nil {
+		return err
+	}
+	defer w.linkByID.Delete(linkID)
+	defer close(link.Done)
 	err = write(ctx, w.conn, &SendMessage{
 		Authorization: w.authorization,
 		Type:          SubscribeType,
 		ID:            linkID,
 		Channel:       channel,
 	})
+	removeSub := func() {
+		w.subscriptionIDByChannel.Delete(channel)
+		w.subscriptionByID.Delete(linkID)
+		close(sub.Chan)
+	}
 	if err != nil {
 		removeSub()
 
@@ -140,7 +151,7 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	case <-ctx.Done():
 		return errors.Join(ErrContextEnded, ctx.Err())
 	case <-w.done:
-	case resp = <-linkC:
+	case resp = <-link.Chan:
 	}
 	if resp == nil {
 		removeSub()
@@ -152,27 +163,41 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 
 		return errFromMsgErrors(resp.Errors)
 	}
-	w.subscriptionMu.Lock()
-	w.subscriptionIDByChannel[channel] = linkID
-	w.subscriptionMu.Unlock()
 
 	return nil
 }
 
 // Unsubscribe unsubscribes to an event channel. The chan used to receive events is not closed after unsubscribing.
 func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error {
-	w.subscriptionMu.RLock()
-	linkID, found := w.subscriptionIDByChannel[channel]
-	w.subscriptionMu.RUnlock()
+	linkIDAny, found := w.subscriptionIDByChannel.Load(channel)
 	if !found {
 		return ErrChannelNotSubscribed
 	}
-	linkC := make(chan *ReceiveMessage, 1)
-	w.linkMu.Lock()
-	w.linkByID[linkID] = linkC
-	w.linkMu.Unlock()
-	defer deleteLink(linkID, &w.linkMu, w.linkByID)
-	err := write(ctx, w.conn, &SendMessage{
+	linkID, ok := linkIDAny.(string)
+	if !ok {
+		return ErrTypeAssertion
+	}
+	subAny, found := w.subscriptionByID.Load(linkID)
+	if !found {
+		return ErrIDDoesNotExists
+	}
+	sub, ok := subAny.(*subscription)
+	if !ok {
+		return ErrTypeAssertion
+	}
+	sub.Mu.Lock()
+	_, found = w.subscriptionByID.Load(linkID)
+	if !found {
+		return ErrUnsubscriptionCalled
+	}
+	defer sub.Mu.Unlock()
+	link, err := w.registerLink(linkID)
+	if err != nil {
+		return err
+	}
+	defer w.linkByID.Delete(linkID)
+	defer close(link.Done)
+	err = write(ctx, w.conn, &SendMessage{
 		Type: UnsubscribeType,
 		ID:   linkID,
 	})
@@ -184,7 +209,7 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 	case <-ctx.Done():
 		return errors.Join(ErrContextEnded, ctx.Err())
 	case <-w.done:
-	case resp = <-linkC:
+	case resp = <-link.Chan:
 	}
 	if resp == nil {
 		return w.Err
@@ -192,12 +217,9 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 	if len(resp.Errors) > 0 {
 		return errFromMsgErrors(resp.Errors)
 	}
-	w.subscriptionMu.Lock()
-	buffC := w.subscriptionBufferByID[linkID]
-	delete(w.subscriptionIDByChannel, channel)
-	delete(w.subscriptionBufferByID, linkID)
-	close(buffC)
-	w.subscriptionMu.Unlock()
+	w.subscriptionIDByChannel.Delete(channel)
+	w.subscriptionByID.Delete(linkID)
+	close(sub.Chan)
 
 	return nil
 }
@@ -219,21 +241,28 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 				}
 				switch msg.Type {
 				case SubscriptionDataType, SubscriptionBroadcastErrorType:
-					w.subscriptionMu.RLock()
-					subscriptionC, found := w.subscriptionBufferByID[msg.ID]
+					subAny, found := w.subscriptionByID.Load(msg.ID)
 					if !found {
-						w.subscriptionMu.RUnlock()
-						cancel(ErrUnknownMessageID)
+						continue
+					}
+					sub, ok := subAny.(*subscription)
+					if !ok {
+						cancel(ErrTypeAssertion)
+					}
+					sub.Mu.Lock()
+					_, found = w.subscriptionByID.Load(msg.ID)
+					if !found {
+						sub.Mu.Unlock()
 
-						return
+						continue
 					}
 					dataMsg := &SubscriptionMessage{
 						Errors: msg.Errors,
 						Event:  msg.Event,
 						Type:   msg.Type,
 					}
-					subscriptionC <- dataMsg
-					w.subscriptionMu.RUnlock()
+					sub.Chan <- dataMsg
+					sub.Mu.Unlock()
 				case KeepAliveType:
 					select {
 					case <-w.done:
@@ -245,16 +274,21 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 
 					return
 				default:
-					w.linkMu.RLock()
-					msgC, found := w.linkByID[msg.ID]
-					if !found {
-						w.linkMu.RUnlock()
-						cancel(ErrUnknownMessageID)
+					linkAny, ok := w.linkByID.Load(msg.ID)
+					if !ok {
+						continue
+					}
+					link, ok := linkAny.(*clientLink)
+					if !ok {
+						cancel(ErrTypeAssertion)
 
 						return
 					}
-					msgC <- msg
-					w.linkMu.RUnlock()
+					select {
+					case <-link.Done:
+						continue
+					case link.Chan <- msg:
+					}
 				}
 			}
 		}
@@ -315,10 +349,34 @@ func (w *WebSocketClient) goHandleTimeOut(cancel context.CancelCauseFunc, timeou
 	})
 }
 
-func deleteLink[KT comparable, VT any](linkID KT, locker sync.Locker, links map[KT]VT) {
-	locker.Lock()
-	defer locker.Unlock()
-	delete(links, linkID)
+func (w *WebSocketClient) registerLink(linkID string) (*clientLink, error) {
+	link := &clientLink{
+		Chan: make(chan *ReceiveMessage, 1),
+		Done: make(chan struct{}),
+	}
+	for {
+		otherLinkAny, loaded := w.linkByID.LoadOrStore(linkID, link)
+		if !loaded {
+			break
+		}
+		otherLink, ok := otherLinkAny.(*clientLink)
+		if !ok {
+			return nil, ErrTypeAssertion
+		}
+		<-otherLink.Done
+	}
+
+	return link, nil
+}
+
+type clientLink struct {
+	Chan chan *ReceiveMessage
+	Done chan struct{}
+}
+
+type subscription struct {
+	Chan chan *SubscriptionMessage
+	Mu   sync.Mutex
 }
 
 func errFromMsgErrors(msgErrs []MessageError) error {
