@@ -54,7 +54,7 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 		return nil, errFromMsgErrors(initMsg.Errors)
 	}
 	client := &WebSocketClient{
-		authorization:           config.Authorization,
+		Authorization:           config.Authorization,
 		conn:                    conn,
 		done:                    make(chan struct{}),
 		linkByID:                sync.Map{},

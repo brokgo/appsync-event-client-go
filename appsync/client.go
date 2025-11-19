@@ -30,11 +30,12 @@ var (
 
 // WebSocketClient is the client for managing a Appsync Event websocket connection.
 type WebSocketClient struct {
+	// Authorization is authorization details sent to the server.
+	Authorization *SendMessageAuthorization
 	// Err is the first error found that prvent the client from continuing.
 	// These errors range from connection errors to data processing errors.
 	Err error
 
-	authorization           *SendMessageAuthorization
 	conn                    *websocket.Conn
 	done                    chan struct{}
 	linkByID                sync.Map
@@ -71,7 +72,7 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 	defer w.linkByID.Delete(linkID)
 	defer close(link.Done)
 	err = write(ctx, w.conn, &SendMessage{
-		Authorization: w.authorization,
+		Authorization: w.Authorization,
 		Channel:       channel,
 		Type:          PublishType,
 		ID:            linkID,
@@ -131,7 +132,7 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	defer w.linkByID.Delete(linkID)
 	defer close(link.Done)
 	err = write(ctx, w.conn, &SendMessage{
-		Authorization: w.authorization,
+		Authorization: w.Authorization,
 		Type:          SubscribeType,
 		ID:            linkID,
 		Channel:       channel,
