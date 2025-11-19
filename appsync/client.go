@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/websocket"
 	"github.com/google/uuid"
 )
 
@@ -28,15 +27,27 @@ var (
 	ErrUnsupportedMsgFormat = errors.New("unsupported message format")
 )
 
+// Conn is the websocket connection to the server.
+type Conn interface {
+	// Close closes the connection.
+	Close() error
+	// Read reads data from the connection.
+	// Return EOF when it reaches the end of a message.
+	Read(ctx context.Context, b []byte) (n int, err error)
+	// Write writes data to the connection.
+	Write(ctx context.Context, b []byte) (n int, err error)
+}
+
 // WebSocketClient is the client for managing a Appsync Event websocket connection.
 type WebSocketClient struct {
 	// Authorization is authorization details sent to the server.
 	Authorization *SendMessageAuthorization
+	// Conn is the websocket connection to the server.
+	Conn Conn
 	// Err is the first error found that prvent the client from continuing.
 	// These errors range from connection errors to data processing errors.
 	Err error
 
-	conn                    *websocket.Conn
 	done                    chan struct{}
 	linkByID                sync.Map
 	subscriptionByID        sync.Map
@@ -51,7 +62,7 @@ func (w *WebSocketClient) Close() error {
 	default:
 		close(w.done) // Issue: https://github.com/brokgo/appsync-event-client-go/issues/5
 	}
-	err := w.conn.Close(websocket.StatusNormalClosure, "")
+	err := w.Conn.Close()
 	w.wg.Wait()
 
 	return err
@@ -75,7 +86,7 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 			err = deregErr
 		}
 	}()
-	err = write(ctx, w.conn, &SendMessage{
+	err = write(ctx, w.Conn, &SendMessage{
 		Authorization: w.Authorization,
 		Channel:       channel,
 		Type:          PublishType,
@@ -139,7 +150,7 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 			err = deregErr
 		}
 	}()
-	err = write(ctx, w.conn, &SendMessage{
+	err = write(ctx, w.Conn, &SendMessage{
 		Authorization: w.Authorization,
 		Type:          SubscribeType,
 		ID:            linkID,
@@ -210,7 +221,7 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) (err 
 			err = deregErr
 		}
 	}()
-	err = write(ctx, w.conn, &SendMessage{
+	err = write(ctx, w.Conn, &SendMessage{
 		Type: UnsubscribeType,
 		ID:   linkID,
 	})
@@ -261,7 +272,7 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 				return
 			default:
 				msg := &ReceiveMessage{}
-				err := read(ctx, w.conn, msg)
+				err := read(ctx, w.Conn, msg)
 				if err != nil {
 					cancel(errors.Join(ErrRecieveMsg, err))
 
@@ -406,6 +417,15 @@ type clientLink struct {
 	Done chan struct{}
 }
 
+type connReader struct {
+	conn Conn
+	ctx  context.Context //nolint: containedctx
+}
+
+func (c *connReader) Read(p []byte) (int, error) {
+	return c.conn.Read(c.ctx, p)
+}
+
 type subscription struct {
 	Chan chan *SubscriptionMessage
 	Mu   sync.Mutex
@@ -420,13 +440,10 @@ func errFromMsgErrors(msgErrs []MessageError) error {
 	return errors.Join(ErrServerMsg, errors.New(string(errBytes))) //nolint: err113
 }
 
-func read(ctx context.Context, conn *websocket.Conn, msg any) error {
-	msgFormat, reader, err := conn.Reader(ctx)
-	if err != nil {
-		return err
-	}
-	if msgFormat != websocket.MessageText {
-		return ErrUnsupportedMsgFormat
+func read(ctx context.Context, conn Conn, msg any) error {
+	reader := &connReader{
+		conn: conn,
+		ctx:  ctx,
 	}
 	msgJSON, err := io.ReadAll(reader)
 	if err != nil {
@@ -436,24 +453,12 @@ func read(ctx context.Context, conn *websocket.Conn, msg any) error {
 	return json.Unmarshal(msgJSON, msg)
 }
 
-func write(ctx context.Context, conn *websocket.Conn, msg any) (err error) {
+func write(ctx context.Context, conn Conn, msg any) error {
 	msgJSON, err := json.Marshal(msg)
 	if err != nil {
-		return
+		return err
 	}
-	writer, err := conn.Writer(ctx, websocket.MessageText)
-	defer func() {
-		clsErr := writer.Close()
-		if err == nil {
-			err = clsErr
-		}
-	}()
-	if err != nil {
-		writer.Close() //nolint: errcheck
+	_, err = conn.Write(ctx, msgJSON)
 
-		return
-	}
-	_, err = writer.Write(msgJSON)
-
-	return
+	return err
 }

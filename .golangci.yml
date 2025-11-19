@@ -41,6 +41,7 @@ linters:
       - -ST1005
     varnamelen:
       ignore-decls:
+        - b []byte
         - i int
         - ok bool
         - t testing.T

@@ -3,24 +3,16 @@ package appsync
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"sync"
 	"time"
-
-	"github.com/coder/websocket"
 )
 
 const initTimeOut = 30 * time.Second
 
 // DialWebSocketConfig creates a Appsync websocket client. For more information on the Appsync websocket API, see https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html.
 func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient, error) {
-	jsonHeaders, err := json.Marshal(config.Headers)
-	if err != nil {
-		return nil, err
-	}
 	httpURL, err := url.JoinPath(fmt.Sprintf("%v://", config.HTTPProtocol), config.HTTPEndpoint, "/event")
 	if err != nil {
 		return nil, err
@@ -29,11 +21,7 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 	if err != nil {
 		return nil, err
 	}
-	dialOptions := &websocket.DialOptions{
-		Host:         httpURL,
-		Subprotocols: []string{"header-" + base64.RawURLEncoding.EncodeToString(jsonHeaders), "aws-appsync-event-ws"},
-	}
-	conn, _, err := websocket.Dial(ctx, realTimeURL, dialOptions)
+	conn, err := newCoderWebSocketConn(ctx, httpURL, realTimeURL, config.Headers)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +43,7 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 	}
 	client := &WebSocketClient{
 		Authorization:           config.Authorization,
-		conn:                    conn,
+		Conn:                    conn,
 		done:                    make(chan struct{}),
 		linkByID:                sync.Map{},
 		subscriptionByID:        sync.Map{},
