@@ -2,8 +2,6 @@ package appsync
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"io"
 
 	"github.com/coder/websocket"
@@ -52,16 +50,12 @@ func (c *coderWebSocketConn) Write(ctx context.Context, b []byte) (int, error) {
 	return len(b), nil
 }
 
-func newCoderWebSocketConn(ctx context.Context, httpURL, realTimeURL string, headers map[string]string) (*coderWebSocketConn, error) {
-	jsonHeaders, err := json.Marshal(headers)
-	if err != nil {
-		return nil, err
-	}
+func newCoderWebSocketConn(ctx context.Context, host, url string, subprotocols []string) (*coderWebSocketConn, error) {
 	dialOptions := &websocket.DialOptions{
-		Host:         httpURL,
-		Subprotocols: []string{"header-" + base64.RawURLEncoding.EncodeToString(jsonHeaders), "aws-appsync-event-ws"},
+		Host:         host,
+		Subprotocols: subprotocols,
 	}
-	conn, _, err := websocket.Dial(ctx, realTimeURL, dialOptions)
+	conn, _, err := websocket.Dial(ctx, url, dialOptions)
 	if err != nil {
 		return nil, err
 	}
