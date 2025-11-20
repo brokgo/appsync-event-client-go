@@ -55,6 +55,45 @@ type WebSocketClient struct {
 	wg                      sync.WaitGroup
 }
 
+// NewWebSocketClient creates a websocket client.
+func NewWebSocketClient(ctx context.Context, conn Conn, auth *Authorization) (*WebSocketClient, error) {
+	err := write(ctx, conn, &SendMessage{
+		Type: ConnectionInitType,
+	})
+	if err != nil {
+		return nil, err
+	}
+	initMsg := &ReceiveMessage{}
+	err = read(ctx, conn, initMsg)
+	if err != nil {
+		return nil, err
+	}
+	if len(initMsg.Errors) > 0 {
+		return nil, errFromMsgErrors(initMsg.Errors)
+	}
+	client := &WebSocketClient{
+		Authorization:           auth,
+		Conn:                    conn,
+		done:                    make(chan struct{}),
+		linkByID:                sync.Map{},
+		subscriptionByID:        sync.Map{},
+		subscriptionIDByChannel: sync.Map{},
+		wg:                      sync.WaitGroup{},
+	}
+	var once sync.Once
+	cancel := func(err error) {
+		once.Do(func() {
+			client.Err = err
+			go client.Close() //nolint: errcheck
+		})
+	}
+	keepAliveC := make(chan struct{}, 1)
+	client.goHandleRead(cancel, keepAliveC) //nolint:contextcheck
+	client.goHandleTimeOut(cancel, time.Duration(initMsg.ConnectionTimeoutMs)*time.Millisecond, keepAliveC)
+
+	return client, nil
+}
+
 // Close closes the connection to the server and all open subscription channels.
 func (w *WebSocketClient) Close() error {
 	select {

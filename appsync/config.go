@@ -1,5 +1,10 @@
 package appsync
 
+import (
+	"fmt"
+	"net/url"
+)
+
 // Config is the configuration file for creating the WebSocketClient.
 type Config struct {
 	Authorization     *Authorization
@@ -44,4 +49,14 @@ func NewLambdaConfig(httpEndpoint, realTimeEndpoint, authorizationToken string) 
 		RealTimeEndpoint:  realTimeEndpoint,
 		WebSocketProtocol: "wss",
 	}
+}
+
+// HTTPURL returns the url of the http API.
+func (c Config) HTTPURL() (string, error) {
+	return url.JoinPath(fmt.Sprintf("%v://", c.HTTPProtocol), c.HTTPEndpoint, "/event")
+}
+
+// RealTimeURL returns the url of the real time API.
+func (c Config) RealTimeURL() (string, error) {
+	return url.JoinPath(fmt.Sprintf("%v://", c.WebSocketProtocol), c.RealTimeEndpoint, "/event/realtime")
 }
