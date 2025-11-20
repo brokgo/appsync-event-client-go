@@ -2,6 +2,7 @@ package appsync_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/brokgo/appsync-event-client-go/appsync"
@@ -83,6 +84,93 @@ func TestConfig(t *testing.T) {
 			err = client.Close()
 			if err != nil {
 				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestConfigHost(t *testing.T) {
+	t.Parallel()
+	testCases := map[string]*struct {
+		Config *appsync.Config
+		Host   string
+	}{
+		"apikey": {
+			Config: appsync.NewAPIKeyConfig("apikey.localhost/http", "apikey.localhost/realtime", "apikeytest"),
+			Host:   "https://apikey.localhost/http/event",
+		},
+		"lambda": {
+			Config: appsync.NewLambdaConfig("lambda.localhost/http", "lambda.localhost/realtime", "tokentest"),
+			Host:   "https://lambda.localhost/http/event",
+		},
+	}
+	for testName, testParams := range testCases {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			host, err := testParams.Config.Host()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if host != testParams.Host {
+				t.Fatalf("expected %v, got %v", testParams.Host, host)
+			}
+		})
+	}
+}
+
+func TestConfigSubprotocols(t *testing.T) {
+	t.Parallel()
+	testCases := map[string]*struct {
+		Config       *appsync.Config
+		Subprotocols []string
+	}{
+		"apikey": {
+			Config:       appsync.NewAPIKeyConfig("apikey.localhost/http", "apikey.localhost/realtime", "apikeytest"),
+			Subprotocols: []string{"header-eyJob3N0IjoiYXBpa2V5LmxvY2FsaG9zdC9odHRwIiwieC1hcGkta2V5IjoiYXBpa2V5dGVzdCJ9", "aws-appsync-event-ws"},
+		},
+		"lambda": {
+			Config:       appsync.NewLambdaConfig("lambda.localhost/http", "lambda.localhost/realtime", "tokentest"),
+			Subprotocols: []string{"header-eyJhdXRob3JpemF0aW9uIjoidG9rZW50ZXN0IiwiaG9zdCI6ImxhbWJkYS5sb2NhbGhvc3QvaHR0cCJ9", "aws-appsync-event-ws"},
+		},
+	}
+	for testName, testParams := range testCases {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			subprotocols, err := testParams.Config.Subprotocols()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(subprotocols, testParams.Subprotocols) {
+				t.Fatalf("expected %v, got %v", testParams.Subprotocols, subprotocols)
+			}
+		})
+	}
+}
+
+func TestConfigURL(t *testing.T) {
+	t.Parallel()
+	testCases := map[string]*struct {
+		Config *appsync.Config
+		URL    string
+	}{
+		"apikey": {
+			Config: appsync.NewAPIKeyConfig("apikey.localhost/http", "apikey.localhost/realtime", "apikeytest"),
+			URL:    "wss://apikey.localhost/realtime/event/realtime",
+		},
+		"lambda": {
+			Config: appsync.NewLambdaConfig("lambda.localhost/http", "lambda.localhost/realtime", "tokentest"),
+			URL:    "wss://lambda.localhost/realtime/event/realtime",
+		},
+	}
+	for testName, testParams := range testCases {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			url, err := testParams.Config.URL()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if url != testParams.URL {
+				t.Fatalf("expected %v, got %v", testParams.URL, url)
 			}
 		})
 	}
