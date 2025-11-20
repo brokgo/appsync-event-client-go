@@ -50,7 +50,7 @@ func (c *coderWebSocketConn) Write(ctx context.Context, b []byte) (int, error) {
 	return len(b), nil
 }
 
-func newCoderWebSocketConn(ctx context.Context, host, url string, subprotocols []string) (*coderWebSocketConn, error) {
+func dialCoderWebSocket(ctx context.Context, host, url string, subprotocols []string) (*coderWebSocketConn, error) {
 	dialOptions := &websocket.DialOptions{
 		Host:         host,
 		Subprotocols: subprotocols,

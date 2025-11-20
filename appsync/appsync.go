@@ -22,7 +22,7 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 	if err != nil {
 		return nil, err
 	}
-	conn, err := newCoderWebSocketConn(ctx, host, url, subprotocols)
+	conn, err := dialCoderWebSocket(ctx, host, url, subprotocols)
 	if err != nil {
 		return nil, err
 	}
