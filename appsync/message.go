@@ -10,9 +10,9 @@ const (
 	UnsubscribeType    SendMsgType = "unsubscribe"
 )
 
-// SendMessageAuthorization contain the client authentication details. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html#authorization-formatting-by-mode
+// Authorization contains the client authentication details. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html#authorization-formatting-by-mode
 // for more information on authorization formatting.
-type SendMessageAuthorization struct {
+type Authorization struct {
 	Authorization     string `json:"authorization,omitempty"`
 	Host              string `json:"host,omitempty"`
 	XAmzDate          string `json:"x-amz-date,omitempty"`
@@ -22,11 +22,11 @@ type SendMessageAuthorization struct {
 
 // SendMessage are messages that are sent to the Appsync Event server.
 type SendMessage struct {
-	Authorization *SendMessageAuthorization `json:"authorization,omitempty"`
-	Channel       string                    `json:"channel,omitempty"`
-	Events        []string                  `json:"events,omitempty"`
-	ID            string                    `json:"id,omitempty"`
-	Type          SendMsgType               `json:"type"`
+	Authorization *Authorization `json:"authorization,omitempty"`
+	Channel       string         `json:"channel,omitempty"`
+	Events        []string       `json:"events,omitempty"`
+	ID            string         `json:"id,omitempty"`
+	Type          SendMsgType    `json:"type"`
 }
 
 // ReceiveMsgType is the message types that can be received from the Appsync Event server.

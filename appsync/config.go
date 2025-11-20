@@ -2,7 +2,7 @@ package appsync
 
 // Config is the configuration file for creating the WebSocketClient.
 type Config struct {
-	Authorization     *SendMessageAuthorization
+	Authorization     *Authorization
 	Headers           map[string]string
 	HTTPEndpoint      string
 	HTTPProtocol      string
@@ -13,7 +13,7 @@ type Config struct {
 // NewAPIKeyConfig creates a config for api key authentication. See https://docs.aws.amazon.com/appsync/latest/devguide/security-authz.html for authentication types.
 func NewAPIKeyConfig(httpEndpoint, realTimeEndpoint, apiKey string) *Config {
 	return &Config{
-		Authorization: &SendMessageAuthorization{
+		Authorization: &Authorization{
 			Host:    httpEndpoint,
 			XAPIKey: apiKey,
 		},
@@ -31,7 +31,7 @@ func NewAPIKeyConfig(httpEndpoint, realTimeEndpoint, apiKey string) *Config {
 // NewLambdaConfig creates a config for lambda authentication. See https://docs.aws.amazon.com/appsync/latest/devguide/security-authz.html for authentication types.
 func NewLambdaConfig(httpEndpoint, realTimeEndpoint, authorizationToken string) *Config {
 	return &Config{
-		Authorization: &SendMessageAuthorization{
+		Authorization: &Authorization{
 			Authorization: authorizationToken,
 			Host:          httpEndpoint,
 		},

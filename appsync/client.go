@@ -41,7 +41,7 @@ type Conn interface {
 // WebSocketClient is the client for managing a Appsync Event websocket connection.
 type WebSocketClient struct {
 	// Authorization is authorization details sent to the server.
-	Authorization *SendMessageAuthorization
+	Authorization *Authorization
 	// Conn is the websocket connection to the server.
 	Conn Conn
 	// Err is the first error found that prvent the client from continuing.

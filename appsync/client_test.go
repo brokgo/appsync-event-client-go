@@ -534,7 +534,7 @@ func TestUnsubscribe(t *testing.T) {
 var portPool = Pool[string]{}         //nolint: gochecknoglobals
 var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
 
-func isSendMessageAuthorizationEqual(msg1, msg2 *appsync.SendMessageAuthorization) bool {
+func isSendMessageAuthorizationEqual(msg1, msg2 *appsync.Authorization) bool {
 	if msg1 == nil && msg2 == nil {
 		return true
 	}
