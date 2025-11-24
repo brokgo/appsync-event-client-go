@@ -10,6 +10,7 @@ const initTimeOut = 30 * time.Second
 
 // DialWebSocketConfig creates a Appsync websocket client. For more information on the Appsync websocket API, see https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html.
 func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient, error) {
+	// Dial conn
 	host, err := config.Host()
 	if err != nil {
 		return nil, err
@@ -26,7 +27,7 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 	if err != nil {
 		return nil, err
 	}
-	timeoutCtx, timeoutCanel := context.WithTimeout(ctx, initTimeOut)
+	// Create timeout when initializing connection.
 	defer timeoutCanel()
 
 	return NewWebSocketClient(timeoutCtx, conn, config.Authorization)
