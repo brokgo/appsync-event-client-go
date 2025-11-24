@@ -3,6 +3,7 @@ package appsync
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -28,6 +29,7 @@ func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient,
 		return nil, err
 	}
 	// Create timeout when initializing connection.
+	timeoutCtx, timeoutCanel := context.WithTimeoutCause(ctx, initTimeOut, errors.New("server timedout")) //nolint: err113
 	defer timeoutCanel()
 
 	return NewWebSocketClient(timeoutCtx, conn, config.Authorization)
