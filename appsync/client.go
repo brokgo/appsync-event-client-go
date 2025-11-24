@@ -162,7 +162,7 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 }
 
 // Subscribe subscribes to an event channel. The chan returned, channelC, will return events for the channel subscription.
-// channelC can be buffered or unbuffered. It is closed when the connection to the server is closed.
+// channelC can be buffered or unbuffered. It is closed when the connection to the server is closed or channel is unsubscribed.
 func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channelC chan *SubscriptionMessage) (err error) {
 	// Create link
 	linkUUID, err := uuid.NewRandom()
@@ -183,11 +183,9 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	// Create subscrition
 	sub := &subscription{
 		Chan: make(chan *SubscriptionMessage),
-		Mu:   sync.Mutex{},
+		Done: make(chan struct{}),
 	}
-	w.goHandleSubscriptionBuffer(sub.Chan, channelC)
-	sub.Mu.Lock()
-	defer sub.Mu.Unlock()
+	w.goHandleSubscriptionBuffer(sub, channelC)
 	_, loaded := w.subscriptionByID.LoadOrStore(linkID, sub)
 	if loaded {
 		return ErrIDExists
@@ -266,8 +264,6 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) (err 
 	if !ok {
 		return ErrTypeAssertion
 	}
-	sub.Mu.Lock()
-	defer sub.Mu.Unlock()
 	// Call
 	err = write(ctx, w.Conn, &SendMessage{
 		Type: UnsubscribeType,
@@ -292,7 +288,7 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) (err 
 	}
 	w.subscriptionIDByChannel.Delete(channel)
 	w.subscriptionByID.Delete(linkID)
-	close(sub.Chan)
+	close(sub.Done)
 
 	return nil
 }
@@ -340,20 +336,15 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 					if !ok {
 						cancel(ErrTypeAssertion)
 					}
-					sub.Mu.Lock()
-					_, found = w.subscriptionByID.Load(msg.ID)
-					if !found {
-						sub.Mu.Unlock()
-
-						continue
-					}
 					dataMsg := &SubscriptionMessage{
 						Errors: msg.Errors,
 						Event:  msg.Event,
 						Type:   msg.Type,
 					}
-					sub.Chan <- dataMsg
-					sub.Mu.Unlock()
+					select {
+					case <-sub.Done:
+					case sub.Chan <- dataMsg:
+					}
 				// Keep alive connection
 				case KeepAliveType:
 					select {
@@ -390,33 +381,28 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 }
 
 // goHandleSubscriptionBuffer handles a single subsctiption. It routes the data from the server to the subscription channel with a buffer in between.
-func (w *WebSocketClient) goHandleSubscriptionBuffer(subIn chan *SubscriptionMessage, subOut chan *SubscriptionMessage) {
+func (w *WebSocketClient) goHandleSubscriptionBuffer(sub *subscription, subOut chan *SubscriptionMessage) {
 	w.wg.Go(func() {
+		defer close(subOut)
 		buff := []*SubscriptionMessage{}
 		for {
 			if len(buff) == 0 {
 				select {
 				case <-w.done:
-					close(subOut)
-
 					return
-				case inMsg, ok := <-subIn:
-					if !ok {
-						return
-					}
+				case <-sub.Done:
+					return
+				case inMsg := <-sub.Chan:
 					buff = append(buff, inMsg)
 				}
 			} else {
 				outMsg := buff[0]
 				select {
 				case <-w.done:
-					close(subOut)
-
 					return
-				case inMsg, ok := <-subIn:
-					if !ok {
-						return
-					}
+				case <-sub.Done:
+					return
+				case inMsg := <-sub.Chan:
 					buff = append(buff, inMsg)
 				case subOut <- outMsg:
 					buff = buff[1:]
@@ -489,7 +475,8 @@ func (c *connReader) Read(p []byte) (int, error) {
 
 type subscription struct {
 	Chan chan *SubscriptionMessage
-	Mu   sync.Mutex
+	// Done is a signal to any readers or writers that the subscription is closed.
+	Done chan struct{}
 }
 
 // errFromMsgErrors converts the error data from the server into a go error.
