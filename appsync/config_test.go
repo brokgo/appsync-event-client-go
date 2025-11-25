@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/brokgo/appsync-event-client-go/appsync"
+	"github.com/brokgo/appsync-event-client-go/appsync/message"
 )
 
 func TestConfig(t *testing.T) {
@@ -59,9 +60,9 @@ func TestConfig(t *testing.T) {
 				t.Fatal()
 			}
 			publishID := clientMsg.ID
-			expectedClientMsg := &appsync.SendMessage{
+			expectedClientMsg := &message.SendMessage{
 				Authorization: config.Authorization,
-				Type:          appsync.PublishType,
+				Type:          message.PublishType,
 				Channel:       channel,
 				ID:            publishID,
 				Events:        events,
@@ -69,10 +70,10 @@ func TestConfig(t *testing.T) {
 			if !isSendMessageEqual(clientMsg, expectedClientMsg) {
 				t.Fatalf("unexpected publish data: %v", clientMsg)
 			}
-			err = server.Send(&appsync.ReceiveMessage{
-				Type:       appsync.PublishSuccessType,
+			err = server.Send(&message.ReceiveMessage{
+				Type:       message.PublishSuccessType,
 				ID:         publishID,
-				Successful: []appsync.ReceiveMessageEventID{{Identifier: "abc", Index: 0}, {Identifier: "def", Index: 1}},
+				Successful: []message.ReceiveMessageEventID{{Identifier: "abc", Index: 0}, {Identifier: "def", Index: 1}},
 			})
 			if err != nil {
 				t.Fatal(err)

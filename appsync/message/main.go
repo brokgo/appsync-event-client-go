@@ -1,4 +1,5 @@
-package appsync
+// Package message contains all the objects that are sent between the server and client.
+package message
 
 // SendMsgType is the message types that are sent to the Appsync Event server.
 type SendMsgType string
