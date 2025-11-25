@@ -56,12 +56,12 @@ func NewLambdaConfig(httpEndpoint, realTimeEndpoint, authorizationToken string) 
 }
 
 // Host returns the url of the host.
-func (c Config) Host() (string, error) {
+func (c *Config) Host() (string, error) {
 	return url.JoinPath(fmt.Sprintf("%v://", c.HTTPProtocol), c.HTTPEndpoint, "/event")
 }
 
 // Subprotocols Returns the websocket subprotocols.
-func (c Config) Subprotocols() ([]string, error) {
+func (c *Config) Subprotocols() ([]string, error) {
 	jsonHeaders, err := json.Marshal(c.Headers)
 	if err != nil {
 		return nil, err
@@ -71,6 +71,6 @@ func (c Config) Subprotocols() ([]string, error) {
 }
 
 // URL returns the url of the webscoket.
-func (c Config) URL() (string, error) {
+func (c *Config) URL() (string, error) {
 	return url.JoinPath(fmt.Sprintf("%v://", c.WebSocketProtocol), c.RealTimeEndpoint, "/event/realtime")
 }

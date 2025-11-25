@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -27,13 +26,13 @@ func TestPubSub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	InfrastructureData := &InfrastructureData{}
-	err = json.Unmarshal(infDataBytes, InfrastructureData)
+	infrastructureData := &InfrastructureData{}
+	err = json.Unmarshal(infDataBytes, infrastructureData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := appsync.NewAPIKeyConfig(InfrastructureData.AppsyncEvent.HTTP, InfrastructureData.AppsyncEvent.REALTIME, InfrastructureData.APIKey)
-	ctx := context.Background()
+	config := appsync.NewAPIKeyConfig(infrastructureData.AppsyncEvent.HTTP, infrastructureData.AppsyncEvent.REALTIME, infrastructureData.APIKey)
+	ctx := t.Context()
 	client, err := appsync.DialWebSocketConfig(ctx, config)
 	if err != nil {
 		t.Fatal(err)

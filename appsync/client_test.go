@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"slices"
 	"sync"
 	"testing"
@@ -531,8 +530,10 @@ func TestUnsubscribe(t *testing.T) {
 	}
 }
 
-var portPool = Pool[string]{}         //nolint: gochecknoglobals
-var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
+var (
+	portPool       = Pool[string]{}   //nolint: gochecknoglobals
+	defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
+)
 
 func isSendMessageAuthorizationEqual(msg1, msg2 *message.Authorization) bool {
 	if msg1 == nil && msg2 == nil {
@@ -609,9 +610,9 @@ func newServer(port string) (*Server, error) {
 	errC := make(chan error)
 	clientC := make(chan *message.SendMessage)
 	serverC := make(chan *message.ReceiveMessage)
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		reqCtx := r.Context()
-		conn, err := websocket.Accept(w, r, nil)
+	handler := http.HandlerFunc(func(resWriter http.ResponseWriter, req *http.Request) {
+		reqCtx := req.Context()
+		conn, err := websocket.Accept(resWriter, req, nil)
 		if err != nil {
 			errC <- err
 		}
@@ -701,5 +702,5 @@ func TestMain(m *testing.M) {
 	for i := range nServers {
 		portPool.Put(fmt.Sprintf("9%03d", i))
 	}
-	os.Exit(m.Run())
+	m.Run()
 }
