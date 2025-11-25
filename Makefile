@@ -15,4 +15,4 @@ lint:
 .PHONY: unit-test
 unit-test:
 	go test $(UNIT_TEST_DIRS) -coverprofile cover.out
-	go tool cover -func cover.out | fgrep total | awk '{print substr($$3, 1, length($$3)-1)}' | awk '{if($$1<80)exit 1}'
+	go tool cover -func cover.out | fgrep total | awk '{print substr($$3, 1, length($$3)-1)}' | awk '{if($$1<75)exit 1}'

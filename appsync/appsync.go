@@ -3,75 +3,34 @@ package appsync
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"net/url"
-	"sync"
+	"errors"
 	"time"
-
-	"github.com/coder/websocket"
 )
 
 const initTimeOut = 30 * time.Second
 
 // DialWebSocketConfig creates a Appsync websocket client. For more information on the Appsync websocket API, see https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html.
 func DialWebSocketConfig(ctx context.Context, config *Config) (*WebSocketClient, error) {
-	jsonHeaders, err := json.Marshal(config.Headers)
+	// Dial conn
+	host, err := config.Host()
 	if err != nil {
 		return nil, err
 	}
-	httpURL, err := url.JoinPath(fmt.Sprintf("%v://", config.HTTPProtocol), config.HTTPEndpoint, "/event")
+	url, err := config.URL()
 	if err != nil {
 		return nil, err
 	}
-	realTimeURL, err := url.JoinPath(fmt.Sprintf("%v://", config.WebSocketProtocol), config.RealTimeEndpoint, "/event/realtime")
+	subprotocols, err := config.Subprotocols()
 	if err != nil {
 		return nil, err
 	}
-	dialOptions := &websocket.DialOptions{
-		Host:         httpURL,
-		Subprotocols: []string{"header-" + base64.RawURLEncoding.EncodeToString(jsonHeaders), "aws-appsync-event-ws"},
-	}
-	conn, _, err := websocket.Dial(ctx, realTimeURL, dialOptions)
+	conn, err := dialCoderWebSocket(ctx, host, url, subprotocols)
 	if err != nil {
 		return nil, err
 	}
-	err = write(ctx, conn, &SendMessage{
-		Type: ConnectionInitType,
-	})
-	if err != nil {
-		return nil, err
-	}
-	timeoutCtx, timeoutCanel := context.WithTimeout(ctx, initTimeOut)
+	// Create timeout when initializing connection.
+	timeoutCtx, timeoutCanel := context.WithTimeoutCause(ctx, initTimeOut, errors.New("server timedout")) //nolint: err113
 	defer timeoutCanel()
-	initMsg := &ReceiveMessage{}
-	err = read(timeoutCtx, conn, initMsg)
-	if err != nil {
-		return nil, err
-	}
-	if len(initMsg.Errors) > 0 {
-		return nil, errFromMsgErrors(initMsg.Errors)
-	}
-	client := &WebSocketClient{
-		authorization:           config.Authorization,
-		conn:                    conn,
-		done:                    make(chan struct{}),
-		linkByID:                map[string]chan *ReceiveMessage{},
-		subscriptionIDByChannel: map[string]string{},
-		subscriptionBufferByID:  map[string]chan *SubscriptionMessage{},
-		wg:                      sync.WaitGroup{},
-	}
-	var once sync.Once
-	cancel := func(err error) {
-		once.Do(func() {
-			client.Err = err
-			go client.Close() //nolint: errcheck
-		})
-	}
-	keepAliveC := make(chan struct{}, 1)
-	client.goHandleRead(cancel, keepAliveC) //nolint:contextcheck
-	client.goHandleTimeOut(cancel, time.Duration(initMsg.ConnectionTimeoutMs)*time.Millisecond, keepAliveC)
 
-	return client, nil
+	return NewWebSocketClient(timeoutCtx, conn, config.Authorization)
 }

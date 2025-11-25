@@ -43,7 +43,6 @@ func (p *Pool[T]) Put(item T) {
 type Server struct {
 	clientC chan *appsync.SendMessage
 	ErrC    chan error
-	port    string
 	server  *http.Server
 	serverC chan *appsync.ReceiveMessage
 }
@@ -534,7 +533,7 @@ func TestUnsubscribe(t *testing.T) {
 var portPool = Pool[string]{}         //nolint: gochecknoglobals
 var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
 
-func isSendMessageAuthorizationEqual(msg1, msg2 *appsync.SendMessageAuthorization) bool {
+func isSendMessageAuthorizationEqual(msg1, msg2 *appsync.Authorization) bool {
 	if msg1 == nil && msg2 == nil {
 		return true
 	}
@@ -688,7 +687,6 @@ func newServer(port string) (*Server, error) {
 	servre := &Server{
 		clientC: clientC,
 		ErrC:    errC,
-		port:    port,
 		server:  server,
 		serverC: serverC,
 	}
