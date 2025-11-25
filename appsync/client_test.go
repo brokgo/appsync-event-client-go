@@ -43,7 +43,6 @@ func (p *Pool[T]) Put(item T) {
 type Server struct {
 	clientC chan *appsync.SendMessage
 	ErrC    chan error
-	port    string
 	server  *http.Server
 	serverC chan *appsync.ReceiveMessage
 }
@@ -688,7 +687,6 @@ func newServer(port string) (*Server, error) {
 	servre := &Server{
 		clientC: clientC,
 		ErrC:    errC,
-		port:    port,
 		server:  server,
 		serverC: serverC,
 	}

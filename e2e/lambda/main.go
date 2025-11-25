@@ -1,12 +1,10 @@
 package main
 
 import (
-	"context"
-
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
-func handleRequest(ctx context.Context) error {
+func handleRequest() error {
 	// Issue: https://github.com/brokgo/appsync-event-client-go/issues/12
 	return nil
 }
