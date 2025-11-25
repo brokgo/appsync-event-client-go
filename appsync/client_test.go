@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/brokgo/appsync-event-client-go/appsync"
+	"github.com/brokgo/appsync-event-client-go/appsync/message"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -41,10 +42,10 @@ func (p *Pool[T]) Put(item T) {
 }
 
 type Server struct {
-	clientC chan *appsync.SendMessage
+	clientC chan *message.SendMessage
 	ErrC    chan error
 	server  *http.Server
-	serverC chan *appsync.ReceiveMessage
+	serverC chan *message.ReceiveMessage
 }
 
 func (s *Server) DialConfig(config *appsync.Config, connectionTimeout time.Duration) (*appsync.WebSocketClient, error) {
@@ -60,14 +61,14 @@ func (s *Server) DialConfig(config *appsync.Config, connectionTimeout time.Durat
 	if err != nil {
 		return nil, errors.Join(errors.New("failed getting client msg during init"), err)
 	}
-	expectedClientMsg := &appsync.SendMessage{
-		Type: appsync.ConnectionInitType,
+	expectedClientMsg := &message.SendMessage{
+		Type: message.ConnectionInitType,
 	}
 	if !isSendMessageEqual(clientMsg, expectedClientMsg) {
 		return nil, fmt.Errorf("unexpected init data: %v", clientMsg)
 	}
-	err = s.Send(&appsync.ReceiveMessage{
-		Type:                appsync.ConnectionAckType,
+	err = s.Send(&message.ReceiveMessage{
+		Type:                message.ConnectionAckType,
 		ConnectionTimeoutMs: int(connectionTimeout.Milliseconds()),
 	})
 	if err != nil {
@@ -81,7 +82,7 @@ func (s *Server) DialConfig(config *appsync.Config, connectionTimeout time.Durat
 	}
 }
 
-func (s *Server) Receive() (*appsync.SendMessage, error) {
+func (s *Server) Receive() (*message.SendMessage, error) {
 	select {
 	case err := <-s.ErrC:
 		return nil, err
@@ -90,7 +91,7 @@ func (s *Server) Receive() (*appsync.SendMessage, error) {
 	}
 }
 
-func (s *Server) Send(msg *appsync.ReceiveMessage) error {
+func (s *Server) Send(msg *message.ReceiveMessage) error {
 	select {
 	case err := <-s.ErrC:
 		return err
@@ -122,8 +123,8 @@ func TestKeepAlive(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 4 {
-		err := server.Send(&appsync.ReceiveMessage{
-			Type: appsync.KeepAliveType,
+		err := server.Send(&message.ReceiveMessage{
+			Type: message.KeepAliveType,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -144,7 +145,7 @@ func TestKeepAlive(t *testing.T) {
 
 func TestPublish(t *testing.T) {
 	t.Parallel()
-	responseEvents := []appsync.ReceiveMessageEventID{
+	responseEvents := []message.ReceiveEvent{
 		{Identifier: "abc", Index: 0},
 		{Identifier: "def", Index: 1},
 		{Identifier: "ghi", Index: 2},
@@ -153,29 +154,29 @@ func TestPublish(t *testing.T) {
 	testCases := map[string]struct {
 		ExpectedErr           error
 		ExpectedSuccessfullIs []int
-		ServerResponse        *appsync.ReceiveMessage
+		ServerResponse        *message.ReceiveMessage
 	}{
 		"success": {
 			ExpectedErr:           nil,
 			ExpectedSuccessfullIs: []int{0, 1, 2, 3},
-			ServerResponse: &appsync.ReceiveMessage{
-				Type:       appsync.PublishSuccessType,
+			ServerResponse: &message.ReceiveMessage{
+				Type:       message.PublishSuccessType,
 				Successful: responseEvents,
 			},
 		},
 		"fail": {
 			ExpectedErr:           appsync.ErrServerMsg,
 			ExpectedSuccessfullIs: []int{},
-			ServerResponse: &appsync.ReceiveMessage{
-				Type:   appsync.PublishErrType,
-				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
+			ServerResponse: &message.ReceiveMessage{
+				Type:   message.PublishErrType,
+				Errors: []message.ErrorData{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
 		"half_success": {
 			ExpectedErr:           nil,
 			ExpectedSuccessfullIs: []int{0, 1},
-			ServerResponse: &appsync.ReceiveMessage{
-				Type:       appsync.PublishSuccessType,
+			ServerResponse: &message.ReceiveMessage{
+				Type:       message.PublishSuccessType,
 				Successful: responseEvents[:2],
 			},
 		},
@@ -217,9 +218,9 @@ func TestPublish(t *testing.T) {
 				t.Fatal()
 			}
 			publishID := clientMsg.ID
-			expectedClientMsg := &appsync.SendMessage{
+			expectedClientMsg := &message.SendMessage{
 				Authorization: config.Authorization,
-				Type:          appsync.PublishType,
+				Type:          message.PublishType,
 				Channel:       channel,
 				ID:            publishID,
 				Events:        events,
@@ -254,34 +255,34 @@ func TestSubscribe(t *testing.T) {
 	t.Parallel()
 	testCases := map[string]struct {
 		ExpectedErr    error
-		ServerData     *appsync.ReceiveMessage
-		ServerResponse *appsync.ReceiveMessage
+		ServerData     *message.ReceiveMessage
+		ServerResponse *message.ReceiveMessage
 	}{
 		"success": {
 			ExpectedErr: nil,
-			ServerData: &appsync.ReceiveMessage{
-				Type:  appsync.SubscriptionDataType,
+			ServerData: &message.ReceiveMessage{
+				Type:  message.SubscriptionDataType,
 				Event: "abc123",
 			},
-			ServerResponse: &appsync.ReceiveMessage{
-				Type: appsync.SubscribeSuccessType,
+			ServerResponse: &message.ReceiveMessage{
+				Type: message.SubscribeSuccessType,
 			},
 		},
 		"fail": {
 			ExpectedErr: appsync.ErrServerMsg,
-			ServerResponse: &appsync.ReceiveMessage{
-				Type:   appsync.SubscribeErrType,
-				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
+			ServerResponse: &message.ReceiveMessage{
+				Type:   message.SubscribeErrType,
+				Errors: []message.ErrorData{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
 		"data_error": {
 			ExpectedErr: nil,
-			ServerData: &appsync.ReceiveMessage{
-				Type:  appsync.SubscriptionBroadcastErrorType,
+			ServerData: &message.ReceiveMessage{
+				Type:  message.SubscriptionBroadcastErrorType,
 				Event: "abc123",
 			},
-			ServerResponse: &appsync.ReceiveMessage{
-				Type: appsync.SubscribeSuccessType,
+			ServerResponse: &message.ReceiveMessage{
+				Type: message.SubscribeSuccessType,
 			},
 		},
 	}
@@ -303,7 +304,7 @@ func TestSubscribe(t *testing.T) {
 				t.Fatal(err)
 			}
 			channel := "test/subscribe"
-			channelC := make(chan *appsync.SubscriptionMessage)
+			channelC := make(chan *message.SubscriptionMessage)
 			errC := make(chan error)
 			go func() {
 				defer close(errC)
@@ -317,9 +318,9 @@ func TestSubscribe(t *testing.T) {
 				t.Fatal(err)
 			}
 			publishID := clientMsg.ID
-			expectedClientMsg := &appsync.SendMessage{
+			expectedClientMsg := &message.SendMessage{
 				Authorization: config.Authorization,
-				Type:          appsync.SubscribeType,
+				Type:          message.SubscribeType,
 				Channel:       channel,
 				ID:            publishID,
 			}
@@ -345,7 +346,7 @@ func TestSubscribe(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expectedMsg := &appsync.SubscriptionMessage{
+			expectedMsg := &message.SubscriptionMessage{
 				Type:  testParams.ServerData.Type,
 				Event: testParams.ServerData.Event,
 			}
@@ -396,37 +397,37 @@ func TestUnsubscribe(t *testing.T) {
 	testCases := map[string]struct {
 		ExpectedSubErr      error
 		ExpectedUnsubErr    error
-		ServerData          *appsync.ReceiveMessage
-		ServerSubResponse   *appsync.ReceiveMessage
-		ServerUnsubResponse *appsync.ReceiveMessage
+		ServerData          *message.ReceiveMessage
+		ServerSubResponse   *message.ReceiveMessage
+		ServerUnsubResponse *message.ReceiveMessage
 	}{
 		"success": {
 			ExpectedSubErr:   nil,
 			ExpectedUnsubErr: nil,
-			ServerData: &appsync.ReceiveMessage{
-				Type:  appsync.SubscriptionDataType,
+			ServerData: &message.ReceiveMessage{
+				Type:  message.SubscriptionDataType,
 				Event: "abc123",
 			},
-			ServerSubResponse: &appsync.ReceiveMessage{
-				Type: appsync.SubscribeSuccessType,
+			ServerSubResponse: &message.ReceiveMessage{
+				Type: message.SubscribeSuccessType,
 			},
-			ServerUnsubResponse: &appsync.ReceiveMessage{
-				Type: appsync.UnsubscribeSuccessType,
+			ServerUnsubResponse: &message.ReceiveMessage{
+				Type: message.UnsubscribeSuccessType,
 			},
 		},
 		"fail": {
 			ExpectedSubErr:   nil,
 			ExpectedUnsubErr: appsync.ErrServerMsg,
-			ServerData: &appsync.ReceiveMessage{
-				Type:  appsync.SubscriptionDataType,
+			ServerData: &message.ReceiveMessage{
+				Type:  message.SubscriptionDataType,
 				Event: "abc123",
 			},
-			ServerSubResponse: &appsync.ReceiveMessage{
-				Type: appsync.SubscribeSuccessType,
+			ServerSubResponse: &message.ReceiveMessage{
+				Type: message.SubscribeSuccessType,
 			},
-			ServerUnsubResponse: &appsync.ReceiveMessage{
-				Type:   appsync.UnsubscribeErrType,
-				Errors: []appsync.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
+			ServerUnsubResponse: &message.ReceiveMessage{
+				Type:   message.UnsubscribeErrType,
+				Errors: []message.ErrorData{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
 	}
@@ -451,7 +452,7 @@ func TestUnsubscribe(t *testing.T) {
 			subErrC := make(chan error)
 			go func() {
 				defer close(subErrC)
-				channelC := make(chan *appsync.SubscriptionMessage)
+				channelC := make(chan *message.SubscriptionMessage)
 				err := client.Subscribe(t.Context(), channel, channelC)
 				if err != nil {
 					subErrC <- err
@@ -464,9 +465,9 @@ func TestUnsubscribe(t *testing.T) {
 				t.Fatal(err)
 			}
 			publishID := clientMsg.ID
-			expectedClientMsg := &appsync.SendMessage{
+			expectedClientMsg := &message.SendMessage{
 				Authorization: config.Authorization,
-				Type:          appsync.SubscribeType,
+				Type:          message.SubscribeType,
 				Channel:       channel,
 				ID:            publishID,
 			}
@@ -501,8 +502,8 @@ func TestUnsubscribe(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expectedClientMsg = &appsync.SendMessage{
-				Type: appsync.UnsubscribeType,
+			expectedClientMsg = &message.SendMessage{
+				Type: message.UnsubscribeType,
 				ID:   publishID,
 			}
 			if !isSendMessageEqual(clientMsg, expectedClientMsg) {
@@ -533,7 +534,7 @@ func TestUnsubscribe(t *testing.T) {
 var portPool = Pool[string]{}         //nolint: gochecknoglobals
 var defaultTimeout = 30 * time.Second //nolint: gochecknoglobals
 
-func isSendMessageAuthorizationEqual(msg1, msg2 *appsync.Authorization) bool {
+func isSendMessageAuthorizationEqual(msg1, msg2 *message.Authorization) bool {
 	if msg1 == nil && msg2 == nil {
 		return true
 	}
@@ -551,7 +552,7 @@ func isSendMessageAuthorizationEqual(msg1, msg2 *appsync.Authorization) bool {
 		msg1.XAPIKey == msg2.XAPIKey
 }
 
-func isSendMessageEqual(msg1, msg2 *appsync.SendMessage) bool {
+func isSendMessageEqual(msg1, msg2 *message.SendMessage) bool {
 	if msg1 == nil && msg2 == nil {
 		return true
 	}
@@ -581,7 +582,7 @@ func isSendMessageEqual(msg1, msg2 *appsync.SendMessage) bool {
 		msg1.Type == msg2.Type
 }
 
-func isSubscriptionMessageEqual(msg1, msg2 *appsync.SubscriptionMessage) bool {
+func isSubscriptionMessageEqual(msg1, msg2 *message.SubscriptionMessage) bool {
 	if msg1 == nil && msg2 == nil {
 		return true
 	}
@@ -606,8 +607,8 @@ func isSubscriptionMessageEqual(msg1, msg2 *appsync.SubscriptionMessage) bool {
 
 func newServer(port string) (*Server, error) {
 	errC := make(chan error)
-	clientC := make(chan *appsync.SendMessage)
-	serverC := make(chan *appsync.ReceiveMessage)
+	clientC := make(chan *message.SendMessage)
+	serverC := make(chan *message.ReceiveMessage)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqCtx := r.Context()
 		conn, err := websocket.Accept(w, r, nil)
@@ -618,7 +619,7 @@ func newServer(port string) (*Server, error) {
 		wsWaitGroup.Go(func() {
 			defer conn.CloseNow() //nolint: errcheck
 			for {
-				clientMsg := &appsync.SendMessage{}
+				clientMsg := &message.SendMessage{}
 				err = wsjson.Read(reqCtx, conn, clientMsg)
 				if err != nil {
 					errC <- err
@@ -635,7 +636,7 @@ func newServer(port string) (*Server, error) {
 		wsWaitGroup.Go(func() {
 			defer conn.CloseNow() //nolint: errcheck
 			for {
-				var serverMsg *appsync.ReceiveMessage
+				var serverMsg *message.ReceiveMessage
 				select {
 				case <-reqCtx.Done():
 					return

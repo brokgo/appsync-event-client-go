@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/brokgo/appsync-event-client-go/appsync/message"
 	"github.com/google/uuid"
 )
 
@@ -41,7 +42,7 @@ type Conn interface {
 // WebSocketClient is the client for managing a Appsync Event websocket connection.
 type WebSocketClient struct {
 	// Authorization is authorization details sent to the server.
-	Authorization *Authorization
+	Authorization *message.Authorization
 	// Conn is the websocket connection to the server.
 	Conn Conn
 	// Err is the first error found that prvent the client from continuing.
@@ -56,15 +57,15 @@ type WebSocketClient struct {
 }
 
 // NewWebSocketClient creates a websocket client.
-func NewWebSocketClient(ctx context.Context, conn Conn, auth *Authorization) (*WebSocketClient, error) {
+func NewWebSocketClient(ctx context.Context, conn Conn, auth *message.Authorization) (*WebSocketClient, error) {
 	// Init call
-	err := write(ctx, conn, &SendMessage{
-		Type: ConnectionInitType,
+	err := write(ctx, conn, &message.SendMessage{
+		Type: message.ConnectionInitType,
 	})
 	if err != nil {
 		return nil, err
 	}
-	initMsg := &ReceiveMessage{}
+	initMsg := &message.ReceiveMessage{}
 	err = read(ctx, conn, initMsg)
 	if err != nil {
 		return nil, err
@@ -119,7 +120,7 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 	}
 	linkID := linkUUID.String()
 	link := &clientLink{
-		Chan: make(chan *ReceiveMessage, 1),
+		Chan: make(chan *message.ReceiveMessage, 1),
 		Done: make(chan struct{}),
 	}
 	_, loaded := w.linkByID.LoadOrStore(linkID, link)
@@ -131,10 +132,10 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 		close(link.Done)
 	}()
 	// Call
-	err = write(ctx, w.Conn, &SendMessage{
+	err = write(ctx, w.Conn, &message.SendMessage{
 		Authorization: w.Authorization,
 		Channel:       channel,
-		Type:          PublishType,
+		Type:          message.PublishType,
 		ID:            linkID,
 		Events:        events,
 	})
@@ -142,7 +143,7 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 		return nil, err
 	}
 	// Handle response
-	var resp *ReceiveMessage
+	var resp *message.ReceiveMessage
 	select {
 	case <-ctx.Done():
 		return nil, errors.Join(ErrContextEnded, ctx.Err())
@@ -165,7 +166,7 @@ func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []
 
 // Subscribe subscribes to an event channel. The chan returned, channelC, will return events for the channel subscription.
 // channelC can be buffered or unbuffered. It is closed when the connection to the server is closed or channel is unsubscribed.
-func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channelC chan *SubscriptionMessage) error {
+func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channelC chan *message.SubscriptionMessage) error {
 	// Create link
 	linkUUID, err := uuid.NewRandom()
 	if err != nil {
@@ -173,7 +174,7 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	}
 	linkID := linkUUID.String()
 	link := &clientLink{
-		Chan: make(chan *ReceiveMessage, 1),
+		Chan: make(chan *message.ReceiveMessage, 1),
 		Done: make(chan struct{}),
 	}
 	_, loaded := w.linkByID.LoadOrStore(linkID, link)
@@ -186,7 +187,7 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	}()
 	// Create subscrition
 	sub := &subscription{
-		Chan: make(chan *SubscriptionMessage),
+		Chan: make(chan *message.SubscriptionMessage),
 		Done: make(chan struct{}),
 	}
 	w.goHandleSubscriptionBuffer(sub, channelC)
@@ -199,9 +200,9 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 		return ErrSubscriptionCalled
 	}
 	// Call
-	err = write(ctx, w.Conn, &SendMessage{
+	err = write(ctx, w.Conn, &message.SendMessage{
 		Authorization: w.Authorization,
-		Type:          SubscribeType,
+		Type:          message.SubscribeType,
 		ID:            linkID,
 		Channel:       channel,
 	})
@@ -216,7 +217,7 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 		return err
 	}
 	// Handle response
-	var resp *ReceiveMessage
+	var resp *message.ReceiveMessage
 	select {
 	case <-ctx.Done():
 		return errors.Join(ErrContextEnded, ctx.Err())
@@ -250,7 +251,7 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 	}
 	// Create link
 	link := &clientLink{
-		Chan: make(chan *ReceiveMessage, 1),
+		Chan: make(chan *message.ReceiveMessage, 1),
 		Done: make(chan struct{}),
 	}
 	_, loaded := w.linkByID.LoadOrStore(linkID, link)
@@ -271,15 +272,15 @@ func (w *WebSocketClient) Unsubscribe(ctx context.Context, channel string) error
 		return ErrTypeAssertion
 	}
 	// Call
-	err := write(ctx, w.Conn, &SendMessage{
-		Type: UnsubscribeType,
+	err := write(ctx, w.Conn, &message.SendMessage{
+		Type: message.UnsubscribeType,
 		ID:   linkID,
 	})
 	if err != nil {
 		return err
 	}
 	// Handle response
-	var resp *ReceiveMessage
+	var resp *message.ReceiveMessage
 	select {
 	case <-ctx.Done():
 		return errors.Join(ErrContextEnded, ctx.Err())
@@ -308,7 +309,7 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 			case <-w.done:
 				return
 			default:
-				msg := &ReceiveMessage{}
+				msg := &message.ReceiveMessage{}
 				err := read(ctx, w.Conn, msg)
 				if err != nil {
 					cancel(errors.Join(ErrRecieveMsg, err))
@@ -317,7 +318,7 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 				}
 				switch msg.Type {
 				// Send subscrription msg data to the subscription channel
-				case SubscriptionDataType, SubscriptionBroadcastErrorType:
+				case message.SubscriptionDataType, message.SubscriptionBroadcastErrorType:
 					subAny, found := w.subscriptionByID.Load(msg.ID)
 					if !found {
 						continue
@@ -326,7 +327,7 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 					if !ok {
 						cancel(ErrTypeAssertion)
 					}
-					dataMsg := &SubscriptionMessage{
+					dataMsg := &message.SubscriptionMessage{
 						Errors: msg.Errors,
 						Event:  msg.Event,
 						Type:   msg.Type,
@@ -336,14 +337,14 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 					case sub.Chan <- dataMsg:
 					}
 				// Keep alive connection
-				case KeepAliveType:
+				case message.KeepAliveType:
 					select {
 					case <-w.done:
 						return
 					case keepAliveC <- struct{}{}:
 					}
 				// Handle error
-				case ErrorType:
+				case message.ErrorType:
 					cancel(errFromMsgErrors(msg.Errors))
 
 					return
@@ -371,10 +372,10 @@ func (w *WebSocketClient) goHandleRead(cancel context.CancelCauseFunc, keepAlive
 }
 
 // goHandleSubscriptionBuffer handles a single subsctiption. It routes the data from the server to the subscription channel with a buffer in between.
-func (w *WebSocketClient) goHandleSubscriptionBuffer(sub *subscription, subOut chan *SubscriptionMessage) {
+func (w *WebSocketClient) goHandleSubscriptionBuffer(sub *subscription, subOut chan *message.SubscriptionMessage) {
 	w.wg.Go(func() {
 		defer close(subOut)
-		buff := []*SubscriptionMessage{}
+		buff := []*message.SubscriptionMessage{}
 		for {
 			if len(buff) == 0 {
 				select {
@@ -422,7 +423,7 @@ func (w *WebSocketClient) goHandleTimeOut(cancel context.CancelCauseFunc, timeou
 }
 
 type clientLink struct {
-	Chan chan *ReceiveMessage
+	Chan chan *message.ReceiveMessage
 	// Done is a signal to any writers that the link is closed.
 	Done chan struct{}
 }
@@ -438,13 +439,13 @@ func (c *connReader) Read(p []byte) (int, error) {
 }
 
 type subscription struct {
-	Chan chan *SubscriptionMessage
+	Chan chan *message.SubscriptionMessage
 	// Done is a signal to any readers or writers that the subscription is closed.
 	Done chan struct{}
 }
 
 // errFromMsgErrors converts the error data from the server into a go error.
-func errFromMsgErrors(msgErrs []MessageError) error {
+func errFromMsgErrors(msgErrs []message.ErrorData) error {
 	errBytes, err := json.Marshal(msgErrs)
 	if err != nil {
 		return errors.Join(ErrMarshalMsg, err)

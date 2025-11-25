@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/brokgo/appsync-event-client-go/appsync"
+	"github.com/brokgo/appsync-event-client-go/appsync/message"
 )
 
 func runPublishAPI(port string) {
@@ -17,14 +18,14 @@ func runPublishAPI(port string) {
 	defer server.Shutdown(context.Background())
 	// Init
 	clientMsg, err := server.Receive()
-	if clientMsg.Type != appsync.ConnectionInitType {
+	if clientMsg.Type != message.ConnectionInitType {
 		panic("expected first call to be init")
 	}
 	if err != nil {
 		panic(err)
 	}
-	err = server.Send(&appsync.ReceiveMessage{
-		Type:                appsync.ConnectionAckType,
+	err = server.Send(&message.ReceiveMessage{
+		Type:                message.ConnectionAckType,
 		ConnectionTimeoutMs: 30000,
 	})
 	if err != nil {
@@ -35,13 +36,13 @@ func runPublishAPI(port string) {
 	if err != nil {
 		panic(err)
 	}
-	if clientMsg.Type != appsync.PublishType {
+	if clientMsg.Type != message.PublishType {
 		panic("expected publish call")
 	}
-	err = server.Send(&appsync.ReceiveMessage{
-		Type: appsync.PublishSuccessType,
+	err = server.Send(&message.ReceiveMessage{
+		Type: message.PublishSuccessType,
 		ID:   clientMsg.ID,
-		Successful: []appsync.ReceiveMessageEventID{
+		Successful: []message.ReceiveEvent{
 			{Identifier: "abc-def-ghi", Index: 0},
 			{Identifier: "jkl-mno-pqr", Index: 1},
 		},
@@ -121,14 +122,14 @@ func runSubscribeAPI(port string) {
 	defer server.Shutdown(context.Background())
 	// Init
 	clientMsg, err := server.Receive()
-	if clientMsg.Type != appsync.ConnectionInitType {
+	if clientMsg.Type != message.ConnectionInitType {
 		panic("expected first call to be init")
 	}
 	if err != nil {
 		panic(err)
 	}
-	err = server.Send(&appsync.ReceiveMessage{
-		Type:                appsync.ConnectionAckType,
+	err = server.Send(&message.ReceiveMessage{
+		Type:                message.ConnectionAckType,
 		ConnectionTimeoutMs: 30000,
 	})
 	if err != nil {
@@ -139,19 +140,19 @@ func runSubscribeAPI(port string) {
 	if err != nil {
 		panic(err)
 	}
-	if clientMsg.Type != appsync.SubscribeType {
+	if clientMsg.Type != message.SubscribeType {
 		panic("expected subscribe call")
 	}
-	err = server.Send(&appsync.ReceiveMessage{
-		Type: appsync.SubscribeSuccessType,
+	err = server.Send(&message.ReceiveMessage{
+		Type: message.SubscribeSuccessType,
 		ID:   clientMsg.ID,
 	})
 	if err != nil {
 		panic(err)
 	}
 	// Event
-	err = server.Send(&appsync.ReceiveMessage{
-		Type:  appsync.SubscriptionDataType,
+	err = server.Send(&message.ReceiveMessage{
+		Type:  message.SubscriptionDataType,
 		ID:    clientMsg.ID,
 		Event: "eventa",
 	})
@@ -185,7 +186,7 @@ func ExampleWebSocketClient_Subscribe() {
 
 	// Subscribe
 	channel := "/default/example"
-	msgC := make(chan *appsync.SubscriptionMessage)
+	msgC := make(chan *message.SubscriptionMessage)
 	err = client.Subscribe(ctx, channel, msgC)
 	if err != nil {
 		panic(err)
@@ -216,14 +217,14 @@ func runUnsubscribeAPI(port string) {
 	defer server.Shutdown(context.Background())
 	// Init
 	clientMsg, err := server.Receive()
-	if clientMsg.Type != appsync.ConnectionInitType {
+	if clientMsg.Type != message.ConnectionInitType {
 		panic("expected first call to be init")
 	}
 	if err != nil {
 		panic(err)
 	}
-	err = server.Send(&appsync.ReceiveMessage{
-		Type:                appsync.ConnectionAckType,
+	err = server.Send(&message.ReceiveMessage{
+		Type:                message.ConnectionAckType,
 		ConnectionTimeoutMs: 30000,
 	})
 	if err != nil {
@@ -234,11 +235,11 @@ func runUnsubscribeAPI(port string) {
 	if err != nil {
 		panic(err)
 	}
-	if clientMsg.Type != appsync.SubscribeType {
+	if clientMsg.Type != message.SubscribeType {
 		panic("expected subscribe call")
 	}
-	err = server.Send(&appsync.ReceiveMessage{
-		Type: appsync.SubscribeSuccessType,
+	err = server.Send(&message.ReceiveMessage{
+		Type: message.SubscribeSuccessType,
 		ID:   clientMsg.ID,
 	})
 	if err != nil {
@@ -249,11 +250,11 @@ func runUnsubscribeAPI(port string) {
 	if err != nil {
 		panic(err)
 	}
-	if clientMsg.Type != appsync.UnsubscribeType {
+	if clientMsg.Type != message.UnsubscribeType {
 		panic("expected unsubscribe call")
 	}
-	err = server.Send(&appsync.ReceiveMessage{
-		Type: appsync.UnsubscribeSuccessType,
+	err = server.Send(&message.ReceiveMessage{
+		Type: message.UnsubscribeSuccessType,
 		ID:   clientMsg.ID,
 	})
 	if err != nil {
@@ -286,7 +287,7 @@ func ExampleWebSocketClient_Unsubscribe() {
 
 	// Subscribe
 	channel := "/default/example"
-	msgC := make(chan *appsync.SubscriptionMessage)
+	msgC := make(chan *message.SubscriptionMessage)
 	err = client.Subscribe(ctx, channel, msgC)
 	if err != nil {
 		panic(err)

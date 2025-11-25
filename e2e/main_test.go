@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/brokgo/appsync-event-client-go/appsync"
+	"github.com/brokgo/appsync-event-client-go/appsync/message"
 )
 
 type InfrastructureData struct {
@@ -38,7 +39,7 @@ func TestPubSub(t *testing.T) {
 		t.Fatal(err)
 	}
 	channel := "/test-pubsub/a"
-	chanC := make(chan *appsync.SubscriptionMessage, 10)
+	chanC := make(chan *message.SubscriptionMessage, 10)
 	err = client.Subscribe(ctx, channel, chanC)
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +70,7 @@ func TestPubSub(t *testing.T) {
 	}
 	chanEvents := []string{}
 	for len(chanEvents) < 2 {
-		var resp *appsync.SubscriptionMessage
+		var resp *message.SubscriptionMessage
 		var ok bool
 		select {
 		case <-time.After(30 * time.Second):
@@ -79,7 +80,7 @@ func TestPubSub(t *testing.T) {
 		if !ok {
 			t.Fatalf("subscription chanel is closed: %v", client.Err)
 		}
-		if resp.Type != appsync.SubscriptionDataType {
+		if resp.Type != message.SubscriptionDataType {
 			t.Fatalf("subscription data returned %v type", resp.Type)
 		}
 		if len(resp.Errors) > 0 {
