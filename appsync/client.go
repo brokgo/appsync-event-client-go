@@ -209,7 +209,7 @@ func (w *WebSocketClient) Subscribe(ctx context.Context, channel string, channel
 	removeSub := func() {
 		w.linkIDByChannel.Delete(channel)
 		w.subReceiverByID.Delete(linkID)
-		close(sub.Chan)
+		close(sub.Done)
 	}
 	if err != nil {
 		removeSub()
