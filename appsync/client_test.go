@@ -145,7 +145,7 @@ func TestKeepAlive(t *testing.T) {
 
 func TestPublish(t *testing.T) {
 	t.Parallel()
-	responseEvents := []message.ReceiveMessageEventID{
+	responseEvents := []message.ReceiveEvent{
 		{Identifier: "abc", Index: 0},
 		{Identifier: "def", Index: 1},
 		{Identifier: "ghi", Index: 2},
@@ -169,7 +169,7 @@ func TestPublish(t *testing.T) {
 			ExpectedSuccessfullIs: []int{},
 			ServerResponse: &message.ReceiveMessage{
 				Type:   message.PublishErrType,
-				Errors: []message.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
+				Errors: []message.ErrorData{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
 		"half_success": {
@@ -272,7 +272,7 @@ func TestSubscribe(t *testing.T) {
 			ExpectedErr: appsync.ErrServerMsg,
 			ServerResponse: &message.ReceiveMessage{
 				Type:   message.SubscribeErrType,
-				Errors: []message.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
+				Errors: []message.ErrorData{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
 		"data_error": {
@@ -427,7 +427,7 @@ func TestUnsubscribe(t *testing.T) {
 			},
 			ServerUnsubResponse: &message.ReceiveMessage{
 				Type:   message.UnsubscribeErrType,
-				Errors: []message.MessageError{{ErrorType: "errtest", Message: "errtestmsg"}},
+				Errors: []message.ErrorData{{ErrorType: "errtest", Message: "errtestmsg"}},
 			},
 		},
 	}

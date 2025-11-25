@@ -1,14 +1,14 @@
 // Package message contains all the objects that are sent between the server and client.
 package message
 
-// SendMsgType is the message types that are sent to the Appsync Event server.
-type SendMsgType string
+// SendType is the message types that are sent to the Appsync Event server.
+type SendType string
 
 const (
-	ConnectionInitType SendMsgType = "connection_init"
-	PublishType        SendMsgType = "publish"
-	SubscribeType      SendMsgType = "subscribe"
-	UnsubscribeType    SendMsgType = "unsubscribe"
+	ConnectionInitType SendType = "connection_init"
+	PublishType        SendType = "publish"
+	SubscribeType      SendType = "subscribe"
+	UnsubscribeType    SendType = "unsubscribe"
 )
 
 // Authorization contains the client authentication details. See https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html#authorization-formatting-by-mode
@@ -27,53 +27,53 @@ type SendMessage struct {
 	Channel       string         `json:"channel,omitempty"`
 	Events        []string       `json:"events,omitempty"`
 	ID            string         `json:"id,omitempty"`
-	Type          SendMsgType    `json:"type"`
+	Type          SendType       `json:"type"`
 }
 
-// ReceiveMsgType is the message types that can be received from the Appsync Event server.
-type ReceiveMsgType string
+// ReceiveType is the message types that can be received from the Appsync Event server.
+type ReceiveType string
 
 const (
-	ConnectionAckType              ReceiveMsgType = "connection_ack"
-	ConnectionErrType              ReceiveMsgType = "connection_error"
-	ErrorType                      ReceiveMsgType = "error"
-	KeepAliveType                  ReceiveMsgType = "ka"
-	PublishErrType                 ReceiveMsgType = "publish_error"
-	PublishSuccessType             ReceiveMsgType = "publish_success"
-	SubscribeErrType               ReceiveMsgType = "subscribe_error"
-	SubscribeSuccessType           ReceiveMsgType = "subscribe_success"
-	SubscriptionBroadcastErrorType ReceiveMsgType = "broadcast_error"
-	SubscriptionDataType           ReceiveMsgType = "data"
-	UnsubscribeErrType             ReceiveMsgType = "unsubscribe_error"
-	UnsubscribeSuccessType         ReceiveMsgType = "unsubscribe_success"
+	ConnectionAckType              ReceiveType = "connection_ack"
+	ConnectionErrType              ReceiveType = "connection_error"
+	ErrorType                      ReceiveType = "error"
+	KeepAliveType                  ReceiveType = "ka"
+	PublishErrType                 ReceiveType = "publish_error"
+	PublishSuccessType             ReceiveType = "publish_success"
+	SubscribeErrType               ReceiveType = "subscribe_error"
+	SubscribeSuccessType           ReceiveType = "subscribe_success"
+	SubscriptionBroadcastErrorType ReceiveType = "broadcast_error"
+	SubscriptionDataType           ReceiveType = "data"
+	UnsubscribeErrType             ReceiveType = "unsubscribe_error"
+	UnsubscribeSuccessType         ReceiveType = "unsubscribe_success"
 )
 
-// MessageError are errors received from the Appsync Event server.
-type MessageError struct {
+// ErrorData are errors received from the Appsync Event server.
+type ErrorData struct {
 	ErrorType string `json:"errorType"`
 	Message   string `json:"message"`
 }
 
 // SubscriptionMessage are the subscription event messages received from the Appsync Event server.
 type SubscriptionMessage struct {
-	Errors []MessageError `json:"errors,omitempty"`
-	Event  string         `json:"event,omitempty"`
-	Type   ReceiveMsgType `json:"type"`
+	Errors []ErrorData `json:"errors,omitempty"`
+	Event  string      `json:"event,omitempty"`
+	Type   ReceiveType `json:"type"`
 }
 
-// ReceiveMessageEventID are the event identifiers that are used for reporting success or failed of individual events.
-type ReceiveMessageEventID struct {
+// ReceiveEvent are the event identifiers that are used for reporting success or failed of individual events.
+type ReceiveEvent struct {
 	Identifier string `json:"identifier"`
 	Index      int    `json:"index"`
 }
 
 // ReceiveMessage are messages that are received from the Appsync Event server.
 type ReceiveMessage struct {
-	ConnectionTimeoutMs int                     `json:"connectionTimeoutMs,omitempty"`
-	Errors              []MessageError          `json:"errors,omitempty"`
-	Event               string                  `json:"event,omitempty"`
-	Failed              []ReceiveMessageEventID `json:"failed,omitempty"`
-	Successful          []ReceiveMessageEventID `json:"successful,omitempty"`
-	ID                  string                  `json:"id,omitempty"`
-	Type                ReceiveMsgType          `json:"type"`
+	ConnectionTimeoutMs int            `json:"connectionTimeoutMs,omitempty"`
+	Errors              []ErrorData    `json:"errors,omitempty"`
+	Event               string         `json:"event,omitempty"`
+	Failed              []ReceiveEvent `json:"failed,omitempty"`
+	Successful          []ReceiveEvent `json:"successful,omitempty"`
+	ID                  string         `json:"id,omitempty"`
+	Type                ReceiveType    `json:"type"`
 }

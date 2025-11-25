@@ -42,7 +42,7 @@ func runPublishAPI(port string) {
 	err = server.Send(&message.ReceiveMessage{
 		Type: message.PublishSuccessType,
 		ID:   clientMsg.ID,
-		Successful: []message.ReceiveMessageEventID{
+		Successful: []message.ReceiveEvent{
 			{Identifier: "abc-def-ghi", Index: 0},
 			{Identifier: "jkl-mno-pqr", Index: 1},
 		},

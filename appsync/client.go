@@ -445,7 +445,7 @@ type subscription struct {
 }
 
 // errFromMsgErrors converts the error data from the server into a go error.
-func errFromMsgErrors(msgErrs []message.MessageError) error {
+func errFromMsgErrors(msgErrs []message.ErrorData) error {
 	errBytes, err := json.Marshal(msgErrs)
 	if err != nil {
 		return errors.Join(ErrMarshalMsg, err)

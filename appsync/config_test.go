@@ -73,7 +73,7 @@ func TestConfig(t *testing.T) {
 			err = server.Send(&message.ReceiveMessage{
 				Type:       message.PublishSuccessType,
 				ID:         publishID,
-				Successful: []message.ReceiveMessageEventID{{Identifier: "abc", Index: 0}, {Identifier: "def", Index: 1}},
+				Successful: []message.ReceiveEvent{{Identifier: "abc", Index: 0}, {Identifier: "def", Index: 1}},
 			})
 			if err != nil {
 				t.Fatal(err)
