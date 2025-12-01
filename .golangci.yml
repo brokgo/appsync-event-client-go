@@ -18,7 +18,7 @@ linters:
   - nestif          # Complexity linter
   - nlreturn        # Complexity linter
   - tagliatelle     # Not all external data uses the same naming scheme
-  - wrapcheck       # TODO: https://github.com/brokgo/appsync-event-client-go/issues/4
+  - wrapcheck       # Unessesaary
   - wsl             # Depricated
   - wsl_v5          # Too much whitespace
   exclusions:
