@@ -87,11 +87,11 @@ func NewWebSocketClient(ctx context.Context, conn Conn, auth *message.Authorizat
 	cancel := func(err error) {
 		once.Do(func() {
 			client.Err = err
-			go client.Close() //nolint: errcheck
+			go client.Close() //nolint: errcheck // Ignore close error since another error is already generated.
 		})
 	}
 	keepAliveC := make(chan struct{}, 1)
-	client.goHandleRead(cancel, keepAliveC) //nolint:contextcheck
+	client.goHandleRead(cancel, keepAliveC) //nolint:contextcheck // The function is running a go routine that will be run after this function is returned.
 	client.goHandleTimeOut(cancel, time.Duration(initMsg.ConnectionTimeoutMs)*time.Millisecond, keepAliveC)
 
 	return client, nil
@@ -112,7 +112,7 @@ func (w *WebSocketClient) Close() error {
 
 // Publish publishes an event to Appsync.
 // If you want to send JSON event, marshal the object into a string.
-func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []string) (sucessIs []int, err error) { //nolint: nonamedreturns
+func (w *WebSocketClient) Publish(ctx context.Context, channel string, events []string) (sucessIs []int, err error) { //nolint: nonamedreturns // sucessIs better describes the return value.
 	// Create link
 	linkUUID, err := uuid.NewRandom()
 	if err != nil {
@@ -425,7 +425,7 @@ func (w *WebSocketClient) goHandleTimeOut(cancel context.CancelCauseFunc, timeou
 // connReader is a wrapper for building an io.reader using the Conn.Read interface.
 type connReader struct {
 	conn Conn
-	ctx  context.Context //nolint: containedctx
+	ctx  context.Context //nolint: containedctx // connReader is a wrapper for callinmg the Conn.Read function, so context will not last longer than the life of this struct.
 }
 
 func (c *connReader) Read(p []byte) (int, error) {
@@ -451,7 +451,7 @@ func errFromMsgErrors(msgErrs []message.ErrorData) error {
 		return errors.Join(ErrMarshalMsg, err)
 	}
 
-	return errors.Join(ErrServerMsg, errors.New(string(errBytes))) //nolint: err113
+	return errors.Join(ErrServerMsg, errors.New(string(errBytes))) //nolint: err113 // Errors.New false positive
 }
 
 // read reads one message from conn.

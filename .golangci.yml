@@ -2,30 +2,93 @@ version: "2"
 linters:
   default: all
   disable:
-  - cyclop      # Complexity linter
-  - depguard    # Unessesaary
-  - exhaustruct # Unessesaary
-  - funlen      # Unessesaary
-  - gocognit    # Complexity linter
-  - revive      # Tangential linters. Need to sort through which are good ones.
-  - tagliatelle # Not all external data uses the same naming scheme
-  - wrapcheck   # TODO: https://github.com/brokgo/appsync-event-client-go/issues/4
-  - wsl         # Depricated
-  - wsl_v5      # Formatting linter
+  - cyclop          # Complexity linter
+  - decorder        # Doesn't take into account public and private when ordering.
+  - depguard        # Unessesaary
+  - dogsled         # Unessesaary
+  - exhaustruct     # Unessesaary
+  - funlen          # Complexity linter
+  - gocognit        # Complexity linter
+  - gocyclo         # Complexity linter
+  - goheader        # Unessesaary
+  - gomodguard      # Unessesaary
+  - interfacebloat  # Complexity linter
+  - maintidx        # Complexity linter
+  - nakedret        # Complexity linter
+  - nestif          # Complexity linter
+  - nlreturn        # Complexity linter
+  - tagliatelle     # Not all external data uses the same naming scheme
+  - wrapcheck       # Unessesaary
+  - wsl             # Depricated
+  - wsl_v5          # Too much whitespace
   exclusions:
     rules:
       - path: _test\.go
         linters:
+          - dupl
           - err113
           - goconst
+          - godoclint
+          - nolintlint
+      - path: e2e/
+        linters:
+          - godoclint
   settings:
+    asasalint:
+      use-builtin-exclusions: false
+    copyloopvar:
+      check-alias: true
+    dupl:
+      threshold: 100
+    embeddedstructfieldcheck:
+      forbid-mutex: true
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    errchkjson:
+      report-no-exported: true
     exhaustive:
       default-signifies-exhaustive: true
+    fatcontext:
+      check-struct-pointers: true
     funcorder:
       alphabetical: true
+    goconst:
+      min-len: 1
+      min-occurrences: 2
+      find-duplicates: true
+      eval-const-expressions: true
+    gocritic:
+      enable-all: true
+      disabled-checks:
+      - whyNoLint # Duplicate linter
+    godoclint:
+      default: all
+      disable:
+      - require-doc # Too many false positives with Public members on private structs
+      - max-len # Duplicate linter
     gosec:
       excludes:
-        - G104  # Same linting as errcheck linter
+        - G104  # Duplicate linter
+    govet:
+      enable-all: true
+      disable:
+      - fieldalignment # Unessesaary
+      - shadow # Duplicate linter
+    grouper:
+      const-require-grouping: true
+      import-require-grouping: true
+      var-require-grouping: true
+    iface:
+      enable:
+        - identical
+        - unused
+        - opaque
+        - unexported
+    importas:
+      no-extra-aliases: true
+    ineffassign:
+      check-escaping-errors: true
     ireturn:
       allow:
         - anon
@@ -35,17 +98,75 @@ linters:
         - stdlib
     lll:
       line-length: 200
+    nolintlint:
+      require-explanation: true
+    perfsprint:
+      err-error: true
+      loop-other-ops: true
+    prealloc:
+      for-loops: true
+    predeclared:
+      qualified-name: true
+    promlinter:
+      strict: true
+    recvcheck:
+      disable-builtin: true
+    revive:
+      enable-all-rules: true
+      rules:
+      - name: add-constant          # Duplicate linter
+        disabled: true
+      - name: cognitive-complexity  # Complexity linter
+        disabled: true
+      - name: comment-spacings      # Duplicate linter
+        disabled: true
+      - name: cyclomatic            # Complexity linter
+        disabled: true
+      - name: exported              # Duplicate linter
+        disabled: true
+      - name: function-length       # Complexity linter
+        disabled: true
+      - name: line-length-limit     # Duplicate linter
+        disabled: true
+      - name: max-public-structs    # Complexity linter
+        disabled: true
+      - name: nested-structs        # Unessesaary
+        disabled: true
+      - name: package-comments      # Duplicate linter
+        disabled: true
     staticcheck:
       checks:
       - all
       - -ST1005
+    tagalign:
+      strict: true
+    unconvert:
+      fast-math: true
+      safe: true
+    unparam:
+      check-exported: true
     unused:
       field-writes-are-uses: false
       exported-fields-are-used: false
-      parameters-are-used: true # Has false positives
       local-variables-are-used: false
       generated-is-used: false
+    usestdlibvars:
+      time-date-month: true
+      time-month: true
+      time-layout: true
+      crypto-hash: true
+      default-rpc-path: true
+      sql-isolation-level: true
+      tls-signature-scheme: true
+      constant-kind: true
+    usetesting:
+      os-temp-dir: true
+      context-background: true
+      context-todo: true
     varnamelen:
+      max-distance: 1
+      check-return: true
+      check-type-param: true
       ignore-decls:
         - b []byte
         - i int
