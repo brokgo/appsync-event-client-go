@@ -129,12 +129,12 @@ func TestKeepAlive(t *testing.T) {
 			t.Fatal(err)
 		}
 		if client.Err != nil {
-			t.Fatal(err)
+			t.Fatal(client.Err)
 		}
 		<-time.After(connectionTimeout / 2)
 	}
 	if client.Err != nil {
-		t.Fatal(err)
+		t.Fatal(client.Err)
 	}
 	err = client.Close()
 	if err != nil {
@@ -383,7 +383,7 @@ func TestTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	if client.Err != nil {
-		t.Fatal(err)
+		t.Fatal(client.Err)
 	}
 	<-time.After(connectionTimeout * 2)
 	if !errors.Is(client.Err, appsync.ErrTimeout) {
