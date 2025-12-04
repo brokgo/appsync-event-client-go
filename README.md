@@ -44,7 +44,15 @@ eventABytes, err := json.Marshal(struct {
 if err != nil {
     panic(err)
 }
-events := []string{string(eventABytes)}
+eventBBytes, err := json.Marshal(struct {
+    B string `json:"b"`
+}{
+    B: "123",
+})
+if err != nil {
+    panic(err)
+}
+events := []string{string(eventABytes), string(eventBBytes)}
 
 // Publish
 channel := "/default/example"
@@ -73,6 +81,7 @@ import (
 	"fmt"
 
 	"github.com/brokgo/appsync-event-client-go/appsync"
+    "github.com/brokgo/appsync-event-client-go/appsync/message"
 )
 
 // Appsync endpoints
@@ -92,7 +101,7 @@ if err != nil {
 
 // Subscribe
 channel := "/default/example"
-msgC := make(chan *appsync.SubscriptionMessage)
+msgC := make(chan *message.SubscriptionMessage)
 err = client.Subscribe(ctx, channel, msgC)
 if err != nil {
     panic(err)
