@@ -1,0 +1,11 @@
+name: Release
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+jobs:
+  update-pkg-go-dev:
+    name: Update pkg.go.dev
+    runs-on: [ubuntu-latest]
+    steps:
+      - run: curl "https://proxy.golang.org/github.com/brokgo/appsync-event-client-go/@v/${{ github.ref_name }}.info"
