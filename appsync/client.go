@@ -24,7 +24,6 @@ var (
 	ErrSubscriptionCalled   = errors.New("subscription on channel already called")
 	ErrTimeout              = errors.New("server timed out")
 	ErrTypeAssertion        = errors.New("faild type assertion")
-	ErrUnsubscriptionCalled = errors.New("unsubscription on channel already called")
 	ErrUnsupportedMsgFormat = errors.New("unsupported message format")
 )
 
