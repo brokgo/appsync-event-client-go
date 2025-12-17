@@ -23,7 +23,6 @@ type Config struct {
 func NewAPIKeyConfig(httpEndpoint, realTimeEndpoint, apiKey string) *Config {
 	return &Config{
 		Authorization: &message.Authorization{
-			Host:    httpEndpoint,
 			XAPIKey: apiKey,
 		},
 		Headers: map[string]string{
