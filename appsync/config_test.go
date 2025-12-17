@@ -14,14 +14,13 @@ func TestConfig(t *testing.T) {
 	testCases := map[string]*struct {
 		Address string
 		Port    string
-	}{"apikey": {}, "lambda": {}}
+	}{"apikey": {}}
 	for _, testParams := range testCases {
 		testParams.Port = portPool.Get()
 		testParams.Address = fmt.Sprintf("localhost:%v", testParams.Port)
 	}
 	testConfigs := map[string]*appsync.Config{
 		"apikey": appsync.NewAPIKeyConfig(testCases["apikey"].Address, testCases["apikey"].Address, "apikeytest"),
-		"lambda": appsync.NewLambdaConfig(testCases["lambda"].Address, testCases["lambda"].Address, "tokentest"),
 	}
 	for testName, testParams := range testCases {
 		t.Run(testName, func(t *testing.T) {
@@ -100,10 +99,6 @@ func TestConfigHost(t *testing.T) {
 			Config: appsync.NewAPIKeyConfig("apikey.localhost/http", "apikey.localhost/realtime", "apikeytest"),
 			Host:   "https://apikey.localhost/http/event",
 		},
-		"lambda": {
-			Config: appsync.NewLambdaConfig("lambda.localhost/http", "lambda.localhost/realtime", "tokentest"),
-			Host:   "https://lambda.localhost/http/event",
-		},
 	}
 	for testName, testParams := range testCases {
 		t.Run(testName, func(t *testing.T) {
@@ -129,10 +124,6 @@ func TestConfigSubprotocols(t *testing.T) {
 			Config:       appsync.NewAPIKeyConfig("apikey.localhost/http", "apikey.localhost/realtime", "apikeytest"),
 			Subprotocols: []string{"header-eyJob3N0IjoiYXBpa2V5LmxvY2FsaG9zdC9odHRwIiwieC1hcGkta2V5IjoiYXBpa2V5dGVzdCJ9", "aws-appsync-event-ws"},
 		},
-		"lambda": {
-			Config:       appsync.NewLambdaConfig("lambda.localhost/http", "lambda.localhost/realtime", "tokentest"),
-			Subprotocols: []string{"header-eyJhdXRob3JpemF0aW9uIjoidG9rZW50ZXN0IiwiaG9zdCI6ImxhbWJkYS5sb2NhbGhvc3QvaHR0cCJ9", "aws-appsync-event-ws"},
-		},
 	}
 	for testName, testParams := range testCases {
 		t.Run(testName, func(t *testing.T) {
@@ -157,10 +148,6 @@ func TestConfigURL(t *testing.T) {
 		"apikey": {
 			Config: appsync.NewAPIKeyConfig("apikey.localhost/http", "apikey.localhost/realtime", "apikeytest"),
 			URL:    "wss://apikey.localhost/realtime/event/realtime",
-		},
-		"lambda": {
-			Config: appsync.NewLambdaConfig("lambda.localhost/http", "lambda.localhost/realtime", "tokentest"),
-			URL:    "wss://lambda.localhost/realtime/event/realtime",
 		},
 	}
 	for testName, testParams := range testCases {

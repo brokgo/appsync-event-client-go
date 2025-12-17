@@ -37,24 +37,6 @@ func NewAPIKeyConfig(httpEndpoint, realTimeEndpoint, apiKey string) *Config {
 	}
 }
 
-// NewLambdaConfig creates a config for lambda authentication. See https://docs.aws.amazon.com/appsync/latest/devguide/security-authz.html for authentication types.
-func NewLambdaConfig(httpEndpoint, realTimeEndpoint, authorizationToken string) *Config {
-	return &Config{
-		Authorization: &message.Authorization{
-			Authorization: authorizationToken,
-			Host:          httpEndpoint,
-		},
-		Headers: map[string]string{
-			"host":          httpEndpoint,
-			"authorization": authorizationToken,
-		},
-		HTTPEndpoint:      httpEndpoint,
-		HTTPProtocol:      "https",
-		RealTimeEndpoint:  realTimeEndpoint,
-		WebSocketProtocol: "wss",
-	}
-}
-
 // Host returns the url of the host.
 func (c *Config) Host() (string, error) {
 	return url.JoinPath(fmt.Sprintf("%v://", c.HTTPProtocol), c.HTTPEndpoint, "/event")
