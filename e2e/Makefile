@@ -1,10 +1,5 @@
-.PHONY: build
-build:
-	cd lambda && go build -o build/bootstrap
-	zip infrastructure/build/lambda.zip lambda/build/bootstrap
-
 .PHONY: deploy
-deploy: build
+deploy:
 	cd infrastructure && terraform apply
 
 .PHONY: test
